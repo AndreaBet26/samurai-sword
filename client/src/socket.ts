@@ -1,8 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 
-const URL = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin;
+const getSocketUrl = (): string => {
+  if (window.location.port === '5173' || window.location.port === '3000') {
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+  return window.location.origin;
+};
 
-export const socket: Socket = io(URL, {
+export const socket: Socket = io(getSocketUrl(), {
   autoConnect: true,
   transports: ['websocket', 'polling']
 });

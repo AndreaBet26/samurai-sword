@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { CardDef } from '../../../shared/types';
 import { soundManager } from '../utils/soundEffects';
-import { Sword, Shield, Zap, Crosshair, Heart } from 'lucide-react';
+import { Sword, Shield, Zap, Crosshair, Heart, Trash2, Check } from 'lucide-react';
 
 interface CardViewProps {
   card: CardDef;
   isSelected?: boolean;
   isPlayable?: boolean;
   isCompact?: boolean;
+  isDefensiveGlow?: boolean;
+  isDiscardSelected?: boolean;
   onClick?: () => void;
 }
 
@@ -16,6 +18,8 @@ export const CardView: React.FC<CardViewProps> = ({
   isSelected = false,
   isPlayable = true,
   isCompact = false,
+  isDefensiveGlow = false,
+  isDiscardSelected = false,
   onClick
 }) => {
   const [imageError, setImageError] = useState(false);
@@ -28,11 +32,19 @@ export const CardView: React.FC<CardViewProps> = ({
   const imageSrc = `/assets/cards/${card.templateId}.png`;
 
   // Color Schemes
-  const borderColor = isWeapon
+  let borderColor = isWeapon
     ? 'border-red-600/90 hover:border-red-400'
     : isProperty
     ? 'border-blue-500/90 hover:border-blue-300'
     : 'border-amber-500/90 hover:border-amber-300';
+
+  if (isDefensiveGlow) {
+    borderColor = 'border-emerald-400';
+  } else if (isDiscardSelected) {
+    borderColor = 'border-red-500';
+  } else if (isSelected) {
+    borderColor = 'border-amber-400';
+  }
 
   const headerBg = isWeapon
     ? 'bg-gradient-to-r from-red-950 via-red-900 to-red-950 text-red-100'
@@ -47,13 +59,13 @@ export const CardView: React.FC<CardViewProps> = ({
     : 'bg-amber-900/60 text-amber-200 border-amber-700/60';
 
   const handleClick = () => {
-    if (!isPlayable) return;
+    if (!isPlayable && !isDefensiveGlow && !isDiscardSelected) return;
     soundManager.playCardSlide();
     onClick?.();
   };
 
   const handleMouseEnter = () => {
-    if (isPlayable) {
+    if (isPlayable || isDefensiveGlow) {
       soundManager.playCardSlide();
     }
   };
@@ -79,14 +91,34 @@ export const CardView: React.FC<CardViewProps> = ({
     <div
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
-      className={`relative w-40 sm:w-44 h-56 sm:h-60 rounded-2xl border-2 flex flex-col justify-between overflow-hidden shadow-2xl select-none transition-all duration-200 ${borderColor} ${
-        isSelected
-          ? 'ring-4 ring-yellow-400 -translate-y-4 shadow-yellow-500/40 scale-105 z-10'
+      className={`relative w-40 sm:w-44 h-56 sm:h-60 rounded-2xl border-2 flex flex-col justify-between overflow-hidden shadow-2xl select-none transition-all duration-300 ${borderColor} ${
+        isDefensiveGlow
+          ? 'ring-4 ring-emerald-400 -translate-y-5 shadow-[0_0_30px_rgba(52,211,153,0.85)] scale-105 z-20 cursor-pointer animate-pulse'
+          : isDiscardSelected
+          ? 'ring-4 ring-red-500 -translate-y-4 shadow-[0_0_25px_rgba(239,68,68,0.8)] scale-102 z-10 cursor-pointer bg-red-950/40'
+          : isSelected
+          ? 'ring-4 ring-yellow-400 -translate-y-4 shadow-yellow-500/40 scale-105 z-10 cursor-pointer'
           : isPlayable
           ? 'hover:-translate-y-3 hover:shadow-2xl cursor-pointer hover:scale-102'
-          : 'opacity-65 cursor-not-allowed'
+          : 'opacity-40 cursor-not-allowed grayscale-[25%]'
       } bg-gradient-to-b from-slate-900 to-slate-950`}
     >
+      {/* Defensive Banner Badge */}
+      {isDefensiveGlow && (
+        <div className="absolute top-1 right-1 bg-emerald-500 text-slate-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-30 animate-bounce">
+          <Shield className="w-3 h-3 text-slate-950" />
+          Parata!
+        </div>
+      )}
+
+      {/* Discard Badge */}
+      {isDiscardSelected && (
+        <div className="absolute top-1 right-1 bg-red-600 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-30">
+          <Trash2 className="w-3 h-3 text-white" />
+          Scarta
+        </div>
+      )}
+
       {/* Glossy top reflection */}
       <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
 
@@ -134,7 +166,6 @@ export const CardView: React.FC<CardViewProps> = ({
             className="w-full h-24 object-contain rounded-lg drop-shadow-md mb-1 z-10"
           />
         ) : (
-          /* Fallback illustrated Sumi-e badge if custom PNG image isn't loaded yet */
           <div className="flex flex-col items-center justify-center my-auto">
             <div
               className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 mb-2 shadow-inner ${badgeColor}`}

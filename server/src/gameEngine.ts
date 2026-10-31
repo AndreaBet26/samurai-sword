@@ -59,12 +59,13 @@ export class GameEngine {
     }
   }
 
-  private addLog(text: string, type: GameLogEntry['type'] = 'info') {
+  private addLog(text: string, type: GameLogEntry['type'] = 'info', meta?: Partial<Omit<GameLogEntry, 'id' | 'timestamp' | 'text' | 'type'>>) {
     this.state.logs.push({
       id: uuidv4(),
       timestamp: Date.now(),
       text,
-      type
+      type,
+      ...meta
     });
     // Keep last 100 logs
     if (this.state.logs.length > 100) {
@@ -214,9 +215,18 @@ export class GameEngine {
   private drawOneCard(): CardDef | null {
     if (this.deck.length === 0) {
       if (this.discardPile.length === 0) return null;
-      this.addLog('Il mazzo è esaurito: gli scarti vengono rimescolati.', 'info');
+      this.addLog('Il mazzo è esaurito: gli scarti vengono rimescolati. Tutti i giocatori perdono 1 Punto Onore!', 'damage');
       this.deck = shuffleArray(this.discardPile);
       this.discardPile = [];
+
+      // Regola ufficiale Samurai Sword: Tutti i giocatori perdono 1 Punto Onore
+      this.playersPrivate.forEach(p => {
+        p.honorPoints = Math.max(0, p.honorPoints - 1);
+      });
+
+      if (this.checkGameOver()) {
+        return null;
+      }
     }
     return this.deck.pop() ?? null;
   }
@@ -421,8 +431,17 @@ export class GameEngine {
     );
 
     this.addLog(
-      `${attacker.name} attacca ${target.name} con ${weaponCard.name} (Gittata ${weaponCard.difficulty}, Danno potenziale: ${damage})!`,
-      'attack'
+      `${attacker.name} attacca ${target.name} con ${weaponCard.name} (Gittata ${weaponCard.difficulty}, Danno: ${damage} PV)!`,
+      'attack',
+      {
+        cardTemplateId: weaponCard.templateId,
+        cardName: weaponCard.name,
+        sourcePlayerId: attacker.id,
+        sourcePlayerName: attacker.name,
+        targetPlayerId: target.id,
+        targetPlayerName: target.name,
+        damage
+      }
     );
 
     // Create pending reaction for target
@@ -460,7 +479,12 @@ export class GameEngine {
 
     this.triggerCardPlayed(card, player, `${player.name} equipaggia ${card.name}!`);
 
-    this.addLog(`${player.name} equipaggia ${card.name}.`, 'action');
+    this.addLog(`${player.name} equipaggia ${card.name}.`, 'action', {
+      cardTemplateId: card.templateId,
+      cardName: card.name,
+      sourcePlayerId: player.id,
+      sourcePlayerName: player.name
+    });
     this.notifyStateChange();
     this.checkBotAction();
     return true;
@@ -513,7 +537,10 @@ export class GameEngine {
         this.playersPrivate.forEach(p => {
           if (p.id !== playerId) {
             const c = this.drawOneCard();
-            if (c) p.hand.push(c);
+            if (c) {
+              p.hand.push(c);
+              this.addLog(`${p.name} pesca 1 carta per la Cerimonia del Tè.`, 'info');
+            }
           }
         });
         break;
@@ -523,7 +550,12 @@ export class GameEngine {
         this.removeCardFromHand(player, cardId);
         this.discardPile.push(card);
         this.triggerCardPlayed(card, player, `${player.name} gioca Daimyo e pesca 2 carte!`);
-        this.addLog(`${player.name} gioca Daimyo e pesca 2 carte.`, 'action');
+        this.addLog(`${player.name} gioca Daimyo e pesca 2 carte.`, 'action', {
+          cardTemplateId: 'daimyo',
+          cardName: 'Daimyo',
+          sourcePlayerId: player.id,
+          sourcePlayerName: player.name
+        });
         for (let i = 0; i < 2; i++) {
           const c = this.drawOneCard();
           if (c) player.hand.push(c);
@@ -835,15 +867,9 @@ export class GameEngine {
     target.isDefeatedThisRound = true;
     target.isHarmless = true;
 
-    // Discard all cards in target's hand
-    target.hand.forEach(c => this.discardPile.push(c));
-    target.hand = [];
-
-    // Discard all properties in target's play area
-    target.propertiesInPlay.forEach(c => this.discardPile.push(c));
-    target.propertiesInPlay = [];
-
-    this.addLog(`${target.name} scarta tutte le carte ed è Inoffensivo fino al suo prossimo turno.`, 'info');
+    // REGOLA UFFICIALE SAMURAI SWORD: Il giocatore abbattuto NON scarta la mano né le proprietà!
+    // Rimane semplicemente Inoffensivo fino al suo prossimo turno, quando recupererà tutta la Resistenza al massimo.
+    this.addLog(`${target.name} è Inoffensivo fino al suo prossimo turno (recupererà tutti i punti ferita e mantiene le sue carte).`, 'info');
   }
 
   public useNobunagaAbility(playerId: string): boolean {
@@ -873,11 +899,12 @@ export class GameEngine {
     const player = this.playersPrivate.get(playerId);
     if (!player) return false;
 
-    // Check if player has more cards than current HP
-    const excess = player.hand.length - player.currentHp;
+    // Regola ufficiale Samurai Sword: limite massimo di 7 carte in mano alla fine del proprio turno
+    const maxHandLimit = 7;
+    const excess = player.hand.length - maxHandLimit;
     if (excess > 0) {
       this.state.turnPhase = 'discard';
-      this.addLog(`${player.name} deve scartare ${excess} carte in eccesso (limite: ${player.currentHp}).`, 'info');
+      this.addLog(`${player.name} deve scartare ${excess} carte per rispettare il limite massimo di 7 carte in mano.`, 'info');
       this.notifyStateChange();
       this.checkBotAction();
       return true;
@@ -894,7 +921,8 @@ export class GameEngine {
     const player = this.playersPrivate.get(playerId);
     if (!player) return false;
 
-    const excess = player.hand.length - player.currentHp;
+    const maxHandLimit = 7;
+    const excess = player.hand.length - maxHandLimit;
     if (cardIds.length !== excess) return false;
 
     for (const cardId of cardIds) {

@@ -25,15 +25,15 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
 }) => {
   const [loadError, setLoadError] = useState(false);
 
-  // Explicit pixel-perfect dimensions with standard card ratio 1 : 1.42
+  // Generous pixel-perfect dimensions with standard card ratio 1 : 1.42
   const sizeStyles: Record<CardSize, { width: string; height: string; borderRadius: string }> = {
-    xs: { width: '32px', height: '45px', borderRadius: '3px' },
-    sm: { width: '56px', height: '80px', borderRadius: '5px' },
-    md: { width: '80px', height: '114px', borderRadius: '6px' },
-    lg: { width: '110px', height: '156px', borderRadius: '8px' },
-    hand: { width: '110px', height: '156px', borderRadius: '8px' },
-    player: { width: '92px', height: '130px', borderRadius: '8px' },
-    zoom: { width: '280px', height: '398px', borderRadius: '16px' }
+    xs: { width: '40px', height: '57px', borderRadius: '4px' },
+    sm: { width: '72px', height: '102px', borderRadius: '6px' },
+    md: { width: '104px', height: '148px', borderRadius: '8px' },
+    lg: { width: '130px', height: '185px', borderRadius: '10px' },
+    hand: { width: '136px', height: '193px', borderRadius: '10px' },
+    player: { width: '112px', height: '159px', borderRadius: '9px' },
+    zoom: { width: '310px', height: '440px', borderRadius: '18px' }
   };
 
   const currentSize = sizeStyles[size] || sizeStyles.md;
@@ -46,10 +46,10 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
         height: currentSize.height,
         borderRadius: currentSize.borderRadius,
         boxShadow: isSelected
-          ? '0 0 0 3px #f59e0b, 0 10px 20px rgba(0,0,0,0.9)'
+          ? '0 0 0 3px #f59e0b, 0 10px 25px rgba(0,0,0,0.95)'
           : isTargetable
-          ? '0 0 0 3px #ef4444, 0 0 18px rgba(239,68,68,0.7), 0 6px 12px rgba(0,0,0,0.9)'
-          : '0 4px 10px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.6)'
+          ? '0 0 0 3px #ef4444, 0 0 22px rgba(239,68,68,0.8), 0 6px 14px rgba(0,0,0,0.9)'
+          : '0 5px 14px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.6)'
       }}
       className={`relative select-none shrink-0 overflow-hidden cursor-pointer transition-all duration-200 ${
         isHoverable ? 'hover:-translate-y-2 hover:shadow-2xl hover:scale-105' : ''
@@ -70,7 +70,7 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-1 text-center bg-slate-900 text-slate-300">
           <span className="text-base mb-1">⚔️</span>
-          <span className="text-[9px] font-bold leading-tight">{fallbackText}</span>
+          <span className="text-[10px] font-bold leading-tight">{fallbackText}</span>
         </div>
       )}
     </div>

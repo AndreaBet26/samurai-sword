@@ -131,6 +131,13 @@ export interface GameLogEntry {
   timestamp: number;
   text: string;
   type: 'info' | 'attack' | 'damage' | 'heal' | 'defeat' | 'end' | 'action';
+  cardTemplateId?: string;
+  cardName?: string;
+  sourcePlayerId?: string;
+  sourcePlayerName?: string;
+  targetPlayerId?: string;
+  targetPlayerName?: string;
+  damage?: number;
 }
 
 export interface LastPlayedCardAnim {

@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { CardDef } from '../../../shared/types';
 import { TabletopCard } from './TabletopCard';
-import { ArrowLeftRight, Layers, MoveHorizontal } from 'lucide-react';
+import { Shield, Trash2, ArrowLeftRight } from 'lucide-react';
 import { soundManager } from '../utils/soundEffects';
 
 interface HandTrayProps {
   cards: CardDef[];
   isMyTurn: boolean;
+  isUnderAttack?: boolean;
+  eligibleReactionCardIds?: string[];
+  isDiscardPhase?: boolean;
+  selectedDiscardIds?: string[];
+  selectedCardId?: string | null;
   onCardClick: (card: CardDef) => void;
 }
 
 export const HandTray: React.FC<HandTrayProps> = ({
   cards,
   isMyTurn,
+  isUnderAttack = false,
+  eligibleReactionCardIds = [],
+  isDiscardPhase = false,
+  selectedDiscardIds = [],
+  selectedCardId = null,
   onCardClick
 }) => {
   const [orderedHand, setOrderedHand] = useState<CardDef[]>([]);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const currentIds = new Set(cards.map(c => c.id));
@@ -35,113 +43,85 @@ export const HandTray: React.FC<HandTrayProps> = ({
     setOrderedHand(sorted);
   };
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.setData('text/plain', String(index));
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    soundManager.playCardSlide();
-    const updated = [...orderedHand];
-    const [moved] = updated.splice(draggedIndex, 1);
-    updated.splice(targetIndex, 0, moved);
-    setOrderedHand(updated);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+  // Fixed overlap calculation for 136px wide cards
+  const getOverlapMargin = (total: number, index: number) => {
+    if (index === 0) return 0;
+    if (total <= 4) return 14;
+    if (total <= 6) return -24;
+    if (total <= 8) return -44;
+    return -58;
   };
 
   return (
-    <div id="table-player-hand" className="flex flex-col items-center select-none shrink-0 max-w-full">
-      {/* Hand Controls Header */}
-      <div className="flex items-center justify-between w-full px-3 mb-1 text-[11px]">
-        <div className="flex items-center gap-2">
-          <span className="font-title font-bold text-slate-300 uppercase tracking-wider text-[10px] flex items-center gap-1.5 drop-shadow">
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
-            La Tua Mano ({orderedHand.length})
-          </span>
-          {orderedHand.length > 1 && (
-            <button
-              onClick={sortCardsByType}
-              className="text-[9px] text-amber-400 hover:text-amber-300 bg-black/60 hover:bg-black/90 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer shadow"
-              title="Ordina per tipo: Armi, Proprietà, Azioni"
-            >
-              <ArrowLeftRight className="w-2.5 h-2.5" />
-              Ordina
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 drop-shadow">
-          <MoveHorizontal className="w-3 h-3 text-slate-500" />
-          <span>Trascina per ordinare • Clicca per ingrandire</span>
-        </div>
+    <div
+      id="table-player-hand"
+      className="relative w-full flex flex-col items-center justify-end select-none pointer-events-auto h-[216px]"
+    >
+      {/* Top subtle controls bar */}
+      <div className="flex items-center justify-center gap-4 mb-1">
+        {orderedHand.length > 1 && !isUnderAttack && !isDiscardPhase && (
+          <button
+            onClick={sortCardsByType}
+            className="text-[10px] text-amber-400 hover:text-amber-300 bg-black/70 hover:bg-black/90 border border-slate-700/80 px-3 py-0.5 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer shadow"
+            title="Ordina per tipo: Armi, Proprietà, Azioni"
+          >
+            <ArrowLeftRight className="w-3 h-3" />
+            Ordina Mano ({orderedHand.length})
+          </button>
+        )}
       </div>
 
-      {/* Cards Row with fanned/overlapping spacing & Drag and Drop */}
-      <div className="flex items-end justify-center px-4 overflow-visible py-1">
-        {orderedHand.length === 0 ? (
-          <div className="py-2.5 px-6 rounded-xl border border-dashed border-slate-700/70 text-slate-400 text-xs italic bg-black/30">
-            Nessuna carta in mano. Sei Inoffensivo!
-          </div>
-        ) : (
+      {/* Cards container with rock-solid baseline */}
+      <div className="relative flex items-end justify-center h-[195px] w-full px-4 overflow-visible">
+        {orderedHand.length > 0 &&
           orderedHand.map((card, idx) => {
-            // Overlapping fan layout
-            const overlapMargin = idx === 0 
-              ? '0px' 
-              : orderedHand.length > 6 
-                ? '-34px' 
-                : orderedHand.length > 4 
-                  ? '-22px' 
-                  : '8px';
+            const isParryCandidate = isUnderAttack && eligibleReactionCardIds.includes(card.id);
+            const isDiscardSelected = isDiscardPhase && selectedDiscardIds.includes(card.id);
+            const isSelected = selectedCardId === card.id;
 
-            const isDragged = draggedIndex === idx;
-            const isOver = dragOverIndex === idx && !isDragged;
+            const margin = getOverlapMargin(orderedHand.length, idx);
 
             return (
               <div
                 key={card.id}
-                draggable={true}
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={(e) => handleDrop(e, idx)}
-                onDragEnd={handleDragEnd}
-                className={`relative transition-all duration-200 cursor-grab active:cursor-grabbing hover:z-40 ${
-                  isDragged ? 'opacity-30 scale-90 -translate-y-2' : ''
-                } ${
-                  isOver ? 'scale-110 -translate-y-5 z-30' : ''
-                }`}
                 style={{
-                  marginLeft: overlapMargin,
-                  zIndex: isOver ? 50 : idx + 1
+                  marginLeft: `${margin}px`,
+                  zIndex: isSelected ? 50 : isParryCandidate ? 45 : isDiscardSelected ? 40 : idx + 1
                 }}
+                className="relative transition-transform duration-200 shrink-0"
               >
-                {/* The full-bleed card with hover lift */}
+                {/* Visual Badges for Defense or Discard */}
+                {isParryCandidate && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-50 animate-bounce pointer-events-none">
+                    <Shield className="w-3 h-3 text-slate-950" />
+                    Parata!
+                  </div>
+                )}
+
+                {isDiscardSelected && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-red-600 text-white font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-50 pointer-events-none">
+                    <Trash2 className="w-3 h-3 text-white" />
+                    Scarta
+                  </div>
+                )}
+
+                {/* The card element */}
                 <div
                   onClick={() => {
                     soundManager.playCardSlide();
                     onCardClick(card);
                   }}
-                  className="transition-transform duration-200 hover:-translate-y-4 hover:scale-105"
+                  className={`transition-all duration-200 cursor-pointer ${
+                    isParryCandidate
+                      ? '-translate-y-5 scale-105 ring-4 ring-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.9)] rounded-lg'
+                      : isDiscardSelected
+                      ? '-translate-y-4 scale-102 ring-4 ring-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)] rounded-lg'
+                      : isSelected
+                      ? '-translate-y-5 scale-105 ring-4 ring-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] rounded-lg'
+                      : isUnderAttack
+                      ? 'opacity-35 grayscale-[30%] cursor-not-allowed'
+                      : 'hover:-translate-y-4 hover:scale-105'
+                  }`}
                 >
                   <TabletopCard
                     imageSrc={`/assets/cards/${card.templateId}.png`}
@@ -152,8 +132,7 @@ export const HandTray: React.FC<HandTrayProps> = ({
                 </div>
               </div>
             );
-          })
-        )}
+          })}
       </div>
     </div>
   );

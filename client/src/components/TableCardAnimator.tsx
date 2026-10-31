@@ -8,12 +8,8 @@ interface FlyingCardInstance {
   imageSrc: string;
   startX: number;
   startY: number;
-  startW: number;
-  startH: number;
   endX: number;
   endY: number;
-  endW: number;
-  endH: number;
   rotation: number;
   durationMs: number;
   active: boolean;
@@ -32,6 +28,11 @@ interface TableCardAnimatorProps {
   turnPlayerId: string;
   myId: string;
   opponentIds?: string[];
+  isInitialDealing?: boolean;
+  incomingDrawnCards?: CardDef[];
+  onCardDeliveredToHand?: (card: CardDef) => void;
+  onAllDrawnCardsDelivered?: () => void;
+  onInitialDealComplete?: () => void;
   onInspectCard?: (card: CardDef) => void;
 }
 
@@ -41,29 +42,105 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
   turnPlayerId,
   myId,
   opponentIds = [],
-  onInspectCard
+  isInitialDealing = false,
+  incomingDrawnCards = [],
+  onCardDeliveredToHand,
+  onAllDrawnCardsDelivered,
+  onInitialDealComplete
 }) => {
   const [flyingCards, setFlyingCards] = useState<FlyingCardInstance[]>([]);
   const [activePlayCard, setActivePlayCard] = useState<CardDef | null>(null);
   const [activeSlash, setActiveSlash] = useState<SlashStrike | null>(null);
   const [clashEffect, setClashEffect] = useState<{ x: number; y: number } | null>(null);
-  const [damagedRect, setDamagedRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const lastPlayedTimestampRef = useRef<number>(0);
   const lastDrawPhaseKeyRef = useRef<string>('');
+  const lastDrawnBatchKeyRef = useRef<string>('');
+  const hasRunInitialDealRef = useRef<boolean>(false);
 
-  const getElementRect = (id: string): { x: number; y: number; w: number; h: number } => {
+  // Exact coordinates helper for large realistic cards (104x148px)
+  const getTargetCoords = (id: string): { x: number; y: number } => {
+    // 1. Player's Hand: directly into the center of the player's bottom hand dock
+    if (id === 'table-player-hand') {
+      return {
+        x: window.innerWidth / 2 - 52,
+        y: window.innerHeight - 175
+      };
+    }
+
+    // 2. Player's Field (Terrain): directly in front of the hand on the table felt
+    if (id === 'table-player-field') {
+      const el = document.getElementById('table-player-field');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          return {
+            x: r.left + r.width / 2 - 52,
+            y: r.top + r.height / 2 - 74
+          };
+        }
+      }
+      return {
+        x: window.innerWidth / 2 - 52,
+        y: window.innerHeight - 270
+      };
+    }
+
+    // 3. Center Play Zone
+    if (id === 'table-play-zone') {
+      const el = document.getElementById('table-play-zone');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      }
+      return {
+        x: window.innerWidth / 2 - 52,
+        y: window.innerHeight / 2 - 74
+      };
+    }
+
+    // 4. Center Deck Pile
+    if (id === 'table-deck-pile') {
+      const el = document.getElementById('table-deck-pile');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      }
+      return {
+        x: window.innerWidth / 2 - 140,
+        y: window.innerHeight / 2 - 74
+      };
+    }
+
+    // 5. Center Discard Pile
+    if (id === 'table-discard-pile') {
+      const el = document.getElementById('table-discard-pile');
+      if (el) {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top };
+      }
+      return {
+        x: window.innerWidth / 2 + 80,
+        y: window.innerHeight / 2 - 74
+      };
+    }
+
+    // 6. Opponents on table
     const el = document.getElementById(id);
     if (el) {
       const r = el.getBoundingClientRect();
-      return { x: r.left, y: r.top, w: r.width, h: r.height };
+      if (r.width > 0 && r.height > 0) {
+        return {
+          x: r.left + r.width / 2 - 52,
+          y: r.top + r.height / 2 - 74
+        };
+      }
     }
-    // Fallback to table center
+
+    // Default table center
     return {
-      x: window.innerWidth / 2 - 40,
-      y: window.innerHeight / 2 - 57,
-      w: 80,
-      h: 114
+      x: window.innerWidth / 2 - 52,
+      y: window.innerHeight / 2 - 74
     };
   };
 
@@ -71,25 +148,21 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     imageSrc: string,
     fromId: string,
     toId: string,
-    durationMs: number = 420,
+    durationMs: number = 300,
     rotation: number = 0,
     onComplete?: () => void
   ) => {
-    const fromRect = getElementRect(fromId);
-    const toRect = getElementRect(toId);
+    const from = getTargetCoords(fromId);
+    const to = getTargetCoords(toId);
     const id = `flying-${Date.now()}-${Math.random()}`;
 
     const newCard: FlyingCardInstance = {
       id,
       imageSrc,
-      startX: fromRect.x,
-      startY: fromRect.y,
-      startW: fromRect.w,
-      startH: fromRect.h,
-      endX: toRect.x,
-      endY: toRect.y,
-      endW: toRect.w,
-      endH: toRect.h,
+      startX: from.x,
+      startY: from.y,
+      endX: to.x,
+      endY: to.y,
       rotation,
       durationMs,
       active: false
@@ -108,31 +181,108 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     setTimeout(() => {
       setFlyingCards(prev => prev.filter(c => c.id !== id));
       onComplete?.();
-    }, durationMs + 40);
+    }, durationMs + 30);
   };
 
-  // 1. ANIMAZIONE DI PESCA (Mazzo -> Mano / Giocatore)
+  // 1. ANIMAZIONE DI DISTRIBUZIONE INIZIALE (DEAL DI INIZIO PARTITA)
   useEffect(() => {
-    if (turnPhase === 'draw') {
+    if (isInitialDealing && !hasRunInitialDealRef.current) {
+      hasRunInitialDealRef.current = true;
+      soundManager.playRiffleShuffle();
+
+      const targets = [...opponentIds.map(id => `table-opponent-${id}`), 'table-player-hand'];
+      let delay = 250;
+
+      for (let round = 0; round < 2; round++) {
+        targets.forEach((targetId) => {
+          setTimeout(() => {
+            soundManager.playCardSlide();
+            spawnFlyingCard(
+              '/assets/ui/card_back.png',
+              'table-deck-pile',
+              targetId,
+              260,
+              (Math.random() - 0.5) * 6
+            );
+          }, delay);
+          delay += 100;
+        });
+      }
+
+      setTimeout(() => {
+        onInitialDealComplete?.();
+      }, delay + 300);
+    }
+  }, [isInitialDealing]);
+
+  // 2. PESCA DI CARTE NELLA MANO: UNA ALLA VOLTA, CON IMMAGINE DELLA CARTA E ANNUNCIO!
+  useEffect(() => {
+    if (incomingDrawnCards && incomingDrawnCards.length > 0) {
+      const batchKey = incomingDrawnCards.map(c => c.id).join('-');
+      if (batchKey === lastDrawnBatchKeyRef.current) return;
+      lastDrawnBatchKeyRef.current = batchKey;
+
+      const total = incomingDrawnCards.length;
+
+      incomingDrawnCards.forEach((card, idx) => {
+        setTimeout(() => {
+          soundManager.playCardSlide();
+
+          // Mostra l'annuncio della carta che sta arrivando
+          setDrawnToast({
+            text: card.name,
+            sub: `Carta ${idx + 1} di ${total}`
+          });
+
+          // Vola a faccia in su con la vera immagine della carta!
+          spawnFlyingCard(
+            `/assets/cards/${card.templateId}.png`,
+            'table-deck-pile',
+            'table-player-hand',
+            320,
+            (Math.random() - 0.5) * 4,
+            () => {
+              soundManager.playCardSlam();
+              // Arrivata nella mano: la fa apparire nel dock della mano
+              onCardDeliveredToHand?.(card);
+
+              if (idx === total - 1) {
+                setTimeout(() => {
+                  setDrawnToast(null);
+                  onAllDrawnCardsDelivered?.();
+                }, 600);
+              }
+            }
+          );
+        }, idx * 460); // 460ms di intervallo: chiaramente visibili una alla volta!
+      });
+    }
+  }, [incomingDrawnCards]);
+
+  // 3. ANIMAZIONE AUTOMATICA DI PESCA PER GLI AVVERSARI (UNA ALLA VOLTA)
+  useEffect(() => {
+    if (turnPhase === 'draw' && !isInitialDealing && turnPlayerId !== myId) {
       const drawKey = `${turnPlayerId}-${Date.now()}`;
       if (lastDrawPhaseKeyRef.current && Date.now() - parseInt(lastDrawPhaseKeyRef.current.split('-')[1] || '0') < 2000) {
         return;
       }
       lastDrawPhaseKeyRef.current = drawKey;
 
-      const targetId = turnPlayerId === myId ? 'table-player-hand' : `table-opponent-${turnPlayerId}`;
+      const targetId = `table-opponent-${turnPlayerId}`;
 
+      // Prima carta all'avversario
       soundManager.playCardSlide();
-      spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 450, -4);
+      spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 280, -3);
 
+      // Seconda carta all'avversario dopo 380ms
       setTimeout(() => {
         soundManager.playCardSlide();
-        spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 450, 3);
-      }, 220);
+        spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 280, 3);
+      }, 380);
     }
-  }, [turnPhase, turnPlayerId, myId]);
+  }, [turnPhase, turnPlayerId, myId, isInitialDealing]);
 
-  // 2. ANIMAZIONE DI GIOCATA, ATTACCHI CON ARMA, PARATE ED EQUIPAGGIAMENTI
+  // 4. ANIMAZIONE DI GIOCATA, TERRENO, ATTACCHI E SCARTI
   useEffect(() => {
     if (!lastPlayedCard) return;
 
@@ -147,38 +297,78 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       const card = lastPlayedCard.card;
       const isWeapon = card.type === 'weapon';
       const isParry = card.actionType === 'parry';
-      const isProperty = card.type === 'property' && card.propertyType !== 'bushido';
+      const isProperty = card.type === 'property';
+      const isBushido = card.propertyType === 'bushido';
       const isTea = card.actionType === 'tea_ceremony';
       const isDaimyo = card.actionType === 'daimyo';
 
       soundManager.playCardSlide();
 
-      // Step A: Fly from player into table play zone
+      // CASE A: CARTE TERRENO (PROPRIETA') -> Vanno direttamente sul terreno davanti alla mano!
+      if (isProperty && !isBushido) {
+        const fieldTarget =
+          lastPlayedCard.sourcePlayerId === myId
+            ? 'table-player-field'
+            : `table-opponent-${lastPlayedCard.sourcePlayerId}`;
+
+        spawnFlyingCard(
+          `/assets/cards/${card.templateId}.png`,
+          sourceId,
+          fieldTarget,
+          320,
+          0,
+          () => {
+            soundManager.playCardSlam();
+          }
+        );
+        return;
+      }
+
+      // CASE B: BUSHIDO -> Vola sul terreno dell'avversario mirato
+      if (isBushido && lastPlayedCard.targetPlayerId) {
+        const bushidoTarget =
+          lastPlayedCard.targetPlayerId === myId
+            ? 'table-player-field'
+            : `table-opponent-${lastPlayedCard.targetPlayerId}`;
+
+        spawnFlyingCard(
+          `/assets/cards/${card.templateId}.png`,
+          sourceId,
+          bushidoTarget,
+          320,
+          0,
+          () => {
+            soundManager.playCardSlam();
+          }
+        );
+        return;
+      }
+
+      // CASE C: ARMI, AZIONI, PARATA -> Volano sul panno centrale
       spawnFlyingCard(
         `/assets/cards/${card.templateId}.png`,
         sourceId,
         'table-play-zone',
-        400,
-        (Math.random() - 0.5) * 6,
+        300,
+        (Math.random() - 0.5) * 5,
         () => {
-          // Card landed on table felt!
           soundManager.playCardSlam();
           setActivePlayCard(card);
 
-          // CASE 1: Weapon Attack -> Directional Slash towards target
+          // Fendente d'attacco direzionale verso l'avversario
           if (isWeapon && lastPlayedCard.targetPlayerId) {
             const targetId =
               lastPlayedCard.targetPlayerId === myId
-                ? 'table-player-mat'
+                ? 'table-player-hand'
                 : `table-opponent-${lastPlayedCard.targetPlayerId}`;
 
-            const playRect = getElementRect('table-play-zone');
-            const targetRect = getElementRect(targetId);
+            const playCoords = getTargetCoords('table-play-zone');
+            const targetCoords = getTargetCoords(targetId);
 
-            const startX = playRect.x + playRect.w / 2;
-            const startY = playRect.y + playRect.h / 2;
-            const endX = targetRect.x + targetRect.w / 2;
-            const endY = targetRect.y + targetRect.h / 2;
+            const startX = playCoords.x + 52;
+            const startY = playCoords.y + 74;
+            const endX = targetCoords.x + 52;
+            const endY = targetCoords.y + 74;
 
             const distance = Math.hypot(endX - startX, endY - startY);
             const angle = (Math.atan2(endY - startY, endX - startX) * 180) / Math.PI;
@@ -186,90 +376,71 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
             soundManager.playSwordSlash();
             setActiveSlash({ startX, startY, distance, angle });
 
-            // Slash impact at target
             setTimeout(() => {
               setActiveSlash(null);
-              setDamagedRect(targetRect);
               soundManager.playTaiko();
-              setTimeout(() => setDamagedRect(null), 550);
-            }, 320);
+            }, 260);
           }
 
-          // CASE 2: Parry Defense -> Blade Clash in center
+          // Effetto parata
           if (isParry) {
-            const playRect = getElementRect('table-play-zone');
+            const playCoords = getTargetCoords('table-play-zone');
             setClashEffect({
-              x: playRect.x + playRect.w / 2,
-              y: playRect.y + playRect.h / 2
+              x: playCoords.x + 52,
+              y: playCoords.y + 74
             });
             soundManager.playParryClash();
-            setTimeout(() => setClashEffect(null), 450);
+            setTimeout(() => setClashEffect(null), 350);
           }
 
-          // CASE 3: Cerimonia del Tè -> Multi-draw radial cards
+          // Cerimonia del te
           if (isTea) {
             setTimeout(() => {
-              // 3 cards to source player
               for (let i = 0; i < 3; i++) {
                 setTimeout(() => {
                   soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 450, -3 + i * 3);
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 260, -3 + i * 3);
                 }, i * 160);
               }
-              // 1 card to everyone else
-              opponentIds.forEach((opId, idx) => {
-                if (opId !== lastPlayedCard.sourcePlayerId) {
-                  setTimeout(() => {
-                    const opTarget = opId === myId ? 'table-player-hand' : `table-opponent-${opId}`;
-                    spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', opTarget, 450);
-                  }, 200 + idx * 100);
-                }
+              // Invia 1 carta dal mazzo a OGNI ALTRO giocatore sul tavolo (inclusa la tua mano!)
+              const otherTargetIds = [
+                ...opponentIds.map(id => `table-opponent-${id}`),
+                'table-player-hand'
+              ].filter(id => id !== sourceId);
+
+              otherTargetIds.forEach((targetId, idx) => {
+                setTimeout(() => {
+                  soundManager.playCardSlide();
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 260);
+                }, 200 + idx * 100);
               });
-            }, 600);
+            }, 350);
           }
 
-          // CASE 4: Daimyo -> 2 cards to player
+          // Daimyo
           if (isDaimyo) {
             setTimeout(() => {
               for (let i = 0; i < 2; i++) {
                 setTimeout(() => {
                   soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 450, i === 0 ? -3 : 3);
-                }, i * 200);
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 260, i === 0 ? -3 : 3);
+                }, i * 180);
               }
-            }, 500);
+            }, 300);
           }
 
-          // Step B: Rest on felt so players see it, then slide to Discard Pile or Equipment slot
+          // La carta usata scivola nella pila degli scarti in sovraimpressione
           setTimeout(() => {
             setActivePlayCard(null);
-
-            if (isProperty) {
-              // Slides into player's equipped properties row on table
-              const equipTarget =
-                lastPlayedCard.sourcePlayerId === myId
-                  ? 'table-player-mat'
-                  : `table-opponent-${lastPlayedCard.sourcePlayerId}`;
-
-              soundManager.playCardSlide();
-              spawnFlyingCard(
-                `/assets/cards/${card.templateId}.png`,
-                'table-play-zone',
-                equipTarget,
-                380
-              );
-            } else {
-              // Slides into Discard Pile
-              soundManager.playCardSlide();
-              spawnFlyingCard(
-                `/assets/cards/${card.templateId}.png`,
-                'table-play-zone',
-                'table-discard-pile',
-                400,
-                (Math.random() - 0.5) * 8
-              );
-            }
-          }, 1800);
+            soundManager.playCardSlide();
+            spawnFlyingCard(
+              `/assets/cards/${card.templateId}.png`,
+              'table-play-zone',
+              'table-discard-pile',
+              280,
+              (Math.random() - 0.5) * 6
+            );
+          }, 1000);
         }
       );
     }
@@ -277,11 +448,10 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
   return (
     <>
-      {/* Ghost flying cards traveling across the table */}
+      {/* Carte in volo: dimensioni ampie (104x148px) con animazione scattante e fluida */}
       {flyingCards.map(c => {
         const deltaX = c.endX - c.startX;
         const deltaY = c.endY - c.startY;
-        const scale = c.endW > 0 && c.startW > 0 ? c.endW / c.startW : 1;
 
         return (
           <div
@@ -290,17 +460,17 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               position: 'fixed',
               left: c.startX,
               top: c.startY,
-              width: c.startW,
-              height: c.startH,
-              zIndex: 70,
+              width: '104px',
+              height: '148px',
+              zIndex: 75,
               pointerEvents: 'none',
               transform: c.active
-                ? `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scale}) rotate(${c.rotation}deg)`
-                : 'translate3d(0, 0, 0) scale(1) rotate(0deg)',
-              transition: `transform ${c.durationMs}ms cubic-bezier(0.2, 0.9, 0.3, 1), opacity ${c.durationMs}ms ease-out`,
-              opacity: c.active ? 1 : 0.9
+                ? `translate3d(${deltaX}px, ${deltaY}px, 0) rotate(${c.rotation}deg)`
+                : 'translate3d(0, 0, 0) rotate(0deg)',
+              transition: `transform ${c.durationMs}ms cubic-bezier(0.15, 0.9, 0.25, 1), opacity ${c.durationMs}ms ease-out`,
+              opacity: c.active ? 1 : 0.95
             }}
-            className="rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.85)] overflow-hidden border border-amber-600/60 bg-slate-900"
+            className="rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.85)] overflow-hidden border border-amber-600/70 bg-slate-900"
           >
             <img
               src={c.imageSrc}
@@ -311,7 +481,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         );
       })}
 
-      {/* Directional Weapon Slash Ray targeting the victim */}
+      {/* Raggio fendente dell'arma verso il bersaglio */}
       {activeSlash && (
         <div
           style={{
@@ -319,56 +489,46 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
             left: activeSlash.startX,
             top: activeSlash.startY,
             width: `${activeSlash.distance}px`,
-            height: '4px',
+            height: '6px',
             transformOrigin: '0 50%',
             transform: `rotate(${activeSlash.angle}deg)`,
-            zIndex: 80,
-            pointerEvents: 'none'
-          }}
-          className="bg-gradient-to-r from-amber-400 via-red-500 to-white shadow-[0_0_25px_#ef4444] rounded-full animate-slashStrike"
-        />
-      )}
-
-      {/* Target Impact Hit Shake & Flash */}
-      {damagedRect && (
-        <div
-          style={{
-            position: 'fixed',
-            left: damagedRect.x - 8,
-            top: damagedRect.y - 8,
-            width: damagedRect.w + 16,
-            height: damagedRect.h + 16,
             zIndex: 85,
             pointerEvents: 'none'
           }}
-          className="rounded-2xl border-4 border-red-500 bg-red-600/25 shadow-[0_0_40px_#ef4444] animate-shake"
+          className="bg-gradient-to-r from-amber-300 via-red-500 to-white shadow-[0_0_35px_#ef4444] rounded-full animate-slashStrike"
         />
       )}
 
-      {/* Parry Clash Sparks in Play Zone */}
+      {/* Scintille dello scontro di Parata */}
       {clashEffect && (
         <div
           style={{
             position: 'fixed',
-            left: clashEffect.x - 35,
-            top: clashEffect.y - 35,
-            width: '70px',
-            height: '70px',
-            zIndex: 85,
+            left: clashEffect.x - 40,
+            top: clashEffect.y - 40,
+            width: '80px',
+            height: '80px',
+            zIndex: 90,
             pointerEvents: 'none'
           }}
           className="flex items-center justify-center animate-ping"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-300 via-white to-blue-400 shadow-[0_0_35px_#f59e0b]" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-amber-300 via-white to-blue-400 shadow-[0_0_40px_#f59e0b]" />
         </div>
       )}
 
-      {/* Active Played Card resting visibly on the table felt in the play zone */}
+      {/* CARTA GIOCATA: Mostrata in SOVRAIMPRESSIONE al centro tavolo */}
       {activePlayCard && (
         <div
-          onClick={() => onInspectCard?.(activePlayCard)}
-          className="cursor-pointer transform hover:scale-105 transition-transform duration-200 animate-fadeIn"
-          title="Carta appena giocata sul tavolo (clicca per ingrandire)"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 65,
+            pointerEvents: 'none'
+          }}
+          className="animate-fadeIn drop-shadow-[0_20px_40px_rgba(0,0,0,0.95)]"
         >
           <TabletopCard
             imageSrc={`/assets/cards/${activePlayCard.templateId}.png`}

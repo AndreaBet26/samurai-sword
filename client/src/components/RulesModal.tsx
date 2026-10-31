@@ -73,7 +73,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   Nessuna Eliminazione dei Giocatori
                 </h3>
                 <p className="leading-relaxed">
-                  In Samurai Sword non vieni mai eliminato! Quando esaurisci i tuoi punti Resistenza (PV), cedi <strong>1 Punto Onore (🪷)</strong> al giocatore che ti ha inflitto il colpo di grazia, scarti tutte le tue carte in mano e le Proprietà davanti a te, e diventi <strong>Inoffensivo</strong> fino al tuo prossimo turno. All’inizio del tuo turno, recuperi tutta la Resistenza al massimo e peschi normalmente!
+                  In Samurai Sword non vieni mai eliminato! Quando esaurisci i tuoi punti Resistenza (PV), cedi <strong>1 Punto Onore (🪷)</strong> al giocatore che ti ha inflitto il colpo di grazia, mantieni tutte le tue carte in mano e le Proprietà davanti a te, e diventi <strong>Inoffensivo</strong> fino al tuo prossimo turno. All’inizio del tuo turno, recuperi tutta la Resistenza al massimo e peschi normalmente!
                 </p>
               </section>
 
@@ -86,7 +86,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   <li><strong>Recupero:</strong> Se eri a 0 PV, ripristini la Resistenza al massimo. Se hai il Bushido, ne risolvi l'effetto.</li>
                   <li><strong>Pesca:</strong> Peschi 2 carte dal mazzo (Hideyoshi ne pesca 3; Ieyasu può prendere la prima dagli scarti).</li>
                   <li><strong>Gioco:</strong> Puoi giocare 1 carta Arma (o di più con Concentrazione / Goemon), attivare carte Azione ed equipaggiare Proprietà.</li>
-                  <li><strong>Scarto:</strong> Alla fine del turno, puoi tenere in mano un numero massimo di carte pari alla tua Resistenza attuale (PV). Le carte in eccesso vanno scartate.</li>
+                  <li><strong>Scarto:</strong> Alla fine del turno, puoi tenere in mano un numero massimo di carte 7 carte (indipendentemente dai PV attuali). Solo le carte oltre la settima vanno scartate.</li>
                 </ol>
               </section>
 

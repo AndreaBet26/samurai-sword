@@ -135,3 +135,17 @@
 .animate-shake {
   animation: shakeDamage 0.4s ease-in-out;
 }
+
+/* Slide in from right */
+@keyframes slideLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slideLeft {
+  animation: slideLeft 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

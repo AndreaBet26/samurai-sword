@@ -197,6 +197,38 @@ class SoundManager {
     } catch {}
   }
 
+  // Rapid Riffle Deck Shuffle
+  public playRiffleShuffle() {
+    if (this.isMuted) return;
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      // Series of rapid card snaps
+      for (let i = 0; i < 16; i++) {
+        const snapTime = now + i * 0.038;
+        const bufferSize = Math.floor(this.ctx.sampleRate * 0.03);
+        const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let j = 0; j < bufferSize; j++) {
+          data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.3));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1600 + (i % 4) * 400, snapTime);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.25, snapTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, snapTime + 0.03);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start(snapTime);
+      }
+    } catch {}
+  }
+
   // Physical card slap on table
   public playCardSlam() {
     if (this.isMuted) return;

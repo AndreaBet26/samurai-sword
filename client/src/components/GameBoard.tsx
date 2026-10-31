@@ -6,9 +6,6 @@ import { soundManager } from '../utils/soundEffects';
 import { PlayerSeat } from './PlayerSeat';
 import { CardView } from './CardView';
 import { ActionLog } from './ActionLog';
-import { ReactionModal } from './ReactionModal';
-import { TargetSelectionModal } from './TargetSelectionModal';
-import { DiscardModal } from './DiscardModal';
 import { GameOverModal } from './GameOverModal';
 import { RulesModal } from './RulesModal';
 import { OpeningCutscene } from './OpeningCutscene';
@@ -21,7 +18,11 @@ import {
   ArrowRight,
   Volume2,
   VolumeX,
-  Sparkles
+  Crosshair,
+  ShieldAlert,
+  HeartCrack,
+  Trash2,
+  X
 } from 'lucide-react';
 
 interface GameBoardProps {
@@ -36,6 +37,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   onReturnToLobby
 }) => {
   const [selectedCardForTarget, setSelectedCardForTarget] = useState<CardDef | null>(null);
+  const [selectedDiscardIds, setSelectedDiscardIds] = useState<string[]>([]);
   const [showRules, setShowRules] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
   const [hasSeenIntro, setHasSeenIntro] = useState(false);
@@ -47,6 +49,33 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const isPlayPhase = isMyTurn && gameState.turnPhase === 'play';
   const isDiscardPhase = isMyTurn && gameState.turnPhase === 'discard';
   const isIeyasuDrawPhase = isMyTurn && gameState.turnPhase === 'draw' && myPrivateState?.character?.id === 'ieyasu';
+
+  // Under attack / reaction state
+  const isUnderAttack = Boolean(
+    gameState.pendingReaction && gameState.pendingReaction.pendingForPlayerId === myId
+  );
+  const reaction = gameState.pendingReaction;
+
+  // Determine eligible cards from hand for defensive reaction
+  let eligibleReactionCardIds: string[] = [];
+  if (isUnderAttack && reaction && myPrivateState) {
+    if (reaction.type === 'parry_weapon' || reaction.type === 'battle_cry') {
+      let cards = myPrivateState.hand.filter(c => c.actionType === 'parry');
+      if (myPrivateState.character?.id === 'hanzo' && myPrivateState.hand.length > 1) {
+        cards = [...cards, ...myPrivateState.hand.filter(c => c.type === 'weapon')];
+      }
+      eligibleReactionCardIds = cards.map(c => c.id);
+    } else if (reaction.type === 'jujutsu') {
+      eligibleReactionCardIds = myPrivateState.hand.filter(c => c.type === 'weapon').map(c => c.id);
+    }
+  }
+
+  // Clear discard selection when not in discard phase
+  useEffect(() => {
+    if (!isDiscardPhase) {
+      setSelectedDiscardIds([]);
+    }
+  }, [isDiscardPhase]);
 
   // Opponents ordered in clockwise circle starting after me
   const myIndex = gameState.turnOrder.indexOf(myId);
@@ -81,8 +110,52 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     setIsMuted(muted);
   };
 
-  // Handle clicking a card in your hand
+  // Check if an opponent can be targeted by the currently selected card
+  const checkCanTargetOpponent = (opponent: PlayerPublicState): boolean => {
+    if (!selectedCardForTarget || !myPlayer) return false;
+    if (opponent.id === myPlayer.id) return false;
+
+    if (selectedCardForTarget.type === 'weapon') {
+      const check = canAttackWithWeapon(gameState.players, myPlayer, opponent, selectedCardForTarget);
+      return check.canAttack;
+    }
+    if (selectedCardForTarget.actionType === 'diversion') {
+      return opponent.handCount > 0;
+    }
+    if (selectedCardForTarget.actionType === 'geisha') {
+      return opponent.handCount > 0 || opponent.propertiesInPlay.length > 0;
+    }
+    if (selectedCardForTarget.propertyType === 'bushido') {
+      return !opponent.isHarmless && opponent.currentHp > 0;
+    }
+    if (selectedCardForTarget.actionType === 'breathing') {
+      return true;
+    }
+    return true;
+  };
+
+  // Handle clicking a card in your hand directly
   const handleCardClick = (card: CardDef) => {
+    // 1. If under attack, clicking an eligible defense card immediately parries!
+    if (isUnderAttack) {
+      if (eligibleReactionCardIds.includes(card.id)) {
+        handleReaction(card.id);
+      }
+      return;
+    }
+
+    // 2. If in discard phase, toggle discard selection on the card
+    if (isDiscardPhase && myPrivateState && myPrivateState.hand.length > myPrivateState.currentHp) {
+      const excess = myPrivateState.hand.length - myPrivateState.currentHp;
+      if (selectedDiscardIds.includes(card.id)) {
+        setSelectedDiscardIds(prev => prev.filter(id => id !== card.id));
+      } else if (selectedDiscardIds.length < excess) {
+        setSelectedDiscardIds(prev => [...prev, card.id]);
+      }
+      return;
+    }
+
+    // 3. Normal play phase
     if (!isPlayPhase) return;
 
     if (card.type === 'weapon') {
@@ -90,13 +163,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         alert('Hai già giocato il numero massimo di armi consentite per questo turno!');
         return;
       }
-      setSelectedCardForTarget(card);
+      if (selectedCardForTarget?.id === card.id) {
+        setSelectedCardForTarget(null);
+      } else {
+        setSelectedCardForTarget(card);
+      }
       return;
     }
 
     if (card.type === 'property') {
       if (card.propertyType === 'bushido') {
-        setSelectedCardForTarget(card);
+        if (selectedCardForTarget?.id === card.id) {
+          setSelectedCardForTarget(null);
+        } else {
+          setSelectedCardForTarget(card);
+        }
       } else {
         soundManager.playCardSlide();
         socket.emit('play_property', { cardId: card.id });
@@ -110,7 +191,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         card.actionType === 'diversion' ||
         card.actionType === 'breathing'
       ) {
-        setSelectedCardForTarget(card);
+        if (selectedCardForTarget?.id === card.id) {
+          setSelectedCardForTarget(null);
+        } else {
+          setSelectedCardForTarget(card);
+        }
       } else {
         // Self or global actions: tea_ceremony, daimyo, battle_cry, jujutsu
         soundManager.playTaiko();
@@ -119,6 +204,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     }
   };
 
+  // Directly confirm target when clicking opponent seat on the table
   const handleConfirmTarget = (targetPlayerId: string, targetPropertyId?: string) => {
     if (!selectedCardForTarget) return;
 
@@ -150,6 +236,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   };
 
   const handleEndPlayPhase = () => {
+    setSelectedCardForTarget(null);
     soundManager.playCardSlide();
     socket.emit('end_play_phase');
   };
@@ -157,6 +244,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const handleDiscardConfirm = (cardIds: string[]) => {
     soundManager.playCardSlide();
     socket.emit('discard_excess', { cardIds });
+    setSelectedDiscardIds([]);
   };
 
   const handleIeyasuDraw = (fromDiscard: boolean) => {
@@ -181,6 +269,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       />
     );
   }
+
+  const excessDiscardCount = myPrivateState ? Math.max(0, myPrivateState.hand.length - myPrivateState.currentHp) : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 overflow-x-hidden relative">
@@ -255,6 +345,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             {opponentsOrdered.map(opponent => {
               const dist = myPlayer ? calculateDistance(gameState.players, myPlayer.id, opponent.id) : 0;
               const diff = myPlayer ? calculateTargetDifficulty(gameState.players, myPlayer, opponent) : 0;
+              const canTarget = checkCanTargetOpponent(opponent);
 
               return (
                 <PlayerSeat
@@ -264,6 +355,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                   isMe={false}
                   distanceFromMe={dist}
                   difficultyFromMe={diff}
+                  canTarget={canTarget}
+                  targetCardName={selectedCardForTarget?.name}
+                  onSelectAsTarget={(propertyId) => handleConfirmTarget(opponent.id, propertyId)}
                 />
               );
             })}
@@ -302,7 +396,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
             </div>
           </div>
 
-          {/* Special Prompts (e.g. Ieyasu Draw Choice or Turn Instructions) */}
+          {/* Center Prompts */}
           <div className="flex flex-col items-center justify-center text-center p-3">
             {isIeyasuDrawPhase && (
               <div className="bg-amber-950/80 border-2 border-amber-500 rounded-3xl p-4 shadow-xl animate-bounce-short">
@@ -329,12 +423,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </div>
             )}
 
-            {!isIeyasuDrawPhase && isMyTurn && (
+            {!isIeyasuDrawPhase && isMyTurn && !isUnderAttack && (
               <div className="bg-slate-900 border border-amber-500/60 rounded-2xl p-3 shadow-lg max-w-xs">
                 <span className="text-xs font-bold text-amber-400 block mb-1">È il tuo turno!</span>
                 <p className="text-xs text-slate-300">
-                  {isPlayPhase && 'Gioca armi, equipaggia proprietà o attiva azioni dalla tua mano.'}
-                  {isDiscardPhase && 'Scarta le carte in eccesso per rispettare il limite di Resistenza.'}
+                  {isPlayPhase && 'Clicca una carta dalla mano per giocarla o attaccare.'}
+                  {isDiscardPhase && 'Seleziona le carte in eccesso direttamente dalla mano per scartarle.'}
                 </p>
               </div>
             )}
@@ -442,17 +536,124 @@ export const GameBoard: React.FC<GameBoardProps> = ({
               </div>
             )}
 
-            {/* Player's Hand Cards */}
+            {/* IN-GAME NOTIFICATION: ATTACK & DEFENSE ALERT (ZERO MODAL) */}
+            {isUnderAttack && reaction && (
+              <div className="mb-4 bg-gradient-to-r from-red-950 via-slate-900 to-red-950 border-2 border-red-500 rounded-2xl p-4 shadow-2xl shadow-red-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-red-900/80 border-2 border-red-500 flex items-center justify-center text-red-300 shrink-0 shadow-lg animate-pulse">
+                    <ShieldAlert className="w-6 h-6 text-red-400" />
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase font-black tracking-wider text-red-400 flex items-center gap-1">
+                      ⚠️ SEI SOTTO ATTACCO!
+                    </span>
+                    <p className="text-sm font-semibold text-slate-100 mt-0.5">
+                      {reaction.type === 'parry_weapon' && (
+                        <>Attacco con <span className="text-amber-400 font-bold">{reaction.weaponCard?.name || 'un\'Arma'}</span> per <span className="text-red-400 font-bold">{reaction.damage} PV</span> di danno!</>
+                      )}
+                      {reaction.type === 'battle_cry' && (
+                        <>Un avversario ha scagliato un <span className="text-amber-400 font-bold">Grido di Battaglia</span> (-1 PV)!</>
+                      )}
+                      {reaction.type === 'jujutsu' && (
+                        <>Un avversario usa una tecnica di <span className="text-amber-400 font-bold">Jiujitsu</span>!</>
+                      )}
+                    </p>
+                    <span className="text-xs text-slate-300 font-medium">
+                      {eligibleReactionCardIds.length > 0
+                        ? '🛡️ Clicca la carta PARATA evidenziata nella tua mano per parare l\'attacco, oppure:'
+                        : 'Non possiedi carte di difesa in mano. Devi subire il colpo:'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleReaction(null)}
+                    className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-red-800 to-rose-900 hover:from-red-700 hover:to-rose-800 text-white font-bold text-xs flex items-center gap-2 border border-red-500 shadow-xl shadow-red-900/40 cursor-pointer transition-all hover:scale-105"
+                  >
+                    <HeartCrack className="w-4 h-4 text-red-200" />
+                    Subisci il Danno ({reaction.damage || 1} PV)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* IN-GAME NOTIFICATION: TARGETING ACTIVE (ZERO MODAL) */}
+            {selectedCardForTarget && !isUnderAttack && (
+              <div className="mb-4 bg-gradient-to-r from-slate-900 via-amber-950/50 to-slate-900 border-2 border-amber-500 rounded-2xl p-3.5 shadow-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500 flex items-center justify-center text-amber-400 shrink-0">
+                    <Crosshair className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase font-black text-amber-400 block">
+                      Carta Selezionata: {selectedCardForTarget.name}
+                    </span>
+                    <p className="text-xs text-slate-200">
+                      {selectedCardForTarget.type === 'weapon'
+                        ? `Gittata ${selectedCardForTarget.difficulty}. Clicca direttamente uno dei guerrieri a portata cerchiati di rosso al tavolo:`
+                        : 'Clicca direttamente uno dei guerrieri al tavolo per colpirlo:'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedCardForTarget(null)}
+                  className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  Annulla
+                </button>
+              </div>
+            )}
+
+            {/* IN-GAME NOTIFICATION: DISCARD LIMIT ACTIVE (ZERO MODAL) */}
+            {isDiscardPhase && excessDiscardCount > 0 && !isUnderAttack && (
+              <div className="mb-4 bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 border-2 border-amber-500 rounded-2xl p-3.5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500 flex items-center justify-center text-amber-400 shrink-0">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs uppercase font-black text-amber-400 block">
+                      Fase di Scarto ({selectedDiscardIds.length} di {excessDiscardCount} selezionate)
+                    </span>
+                    <p className="text-xs text-slate-300">
+                      La tua Resistenza è di {myPrivateState.currentHp} PV. Clicca le {excessDiscardCount} carte dalla mano che desideri scartare:
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleDiscardConfirm(selectedDiscardIds)}
+                  disabled={selectedDiscardIds.length !== excessDiscardCount}
+                  className={`py-2 px-5 rounded-xl font-black text-xs border shadow transition-all ${
+                    selectedDiscardIds.length === excessDiscardCount
+                      ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-300 cursor-pointer shadow-amber-500/30 scale-105'
+                      : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  Conferma Scarto ({selectedDiscardIds.length}/{excessDiscardCount})
+                </button>
+              </div>
+            )}
+
+            {/* Player's Hand of Cards */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                   La Tua Mano ({myPrivateState.hand.length} carte)
                 </span>
-                {isPlayPhase && (
+                {isUnderAttack ? (
+                  <span className="text-xs text-emerald-400 font-black animate-pulse flex items-center gap-1">
+                    <Shield className="w-3.5 h-3.5" />
+                    Clicca sulla carta Parata evidenziata per difenderti!
+                  </span>
+                ) : isPlayPhase ? (
                   <span className="text-xs text-amber-400 font-semibold animate-pulse">
                     Clicca su una carta per giocarla
                   </span>
-                )}
+                ) : null}
               </div>
 
               {myPrivateState.hand.length === 0 ? (
@@ -461,50 +662,35 @@ export const GameBoard: React.FC<GameBoardProps> = ({
                 </div>
               ) : (
                 <div className="flex items-center gap-3 overflow-x-auto pb-4 pt-2 px-1">
-                  {myPrivateState.hand.map(card => (
-                    <CardView
-                      key={card.id}
-                      card={card}
-                      isPlayable={isPlayPhase}
-                      onClick={() => handleCardClick(card)}
-                    />
-                  ))}
+                  {myPrivateState.hand.map(card => {
+                    const isDefensive = isUnderAttack && eligibleReactionCardIds.includes(card.id);
+                    const isDiscardSelected = isDiscardPhase && selectedDiscardIds.includes(card.id);
+                    const isCardSelected = selectedCardForTarget?.id === card.id;
+
+                    const isCardPlayable = isUnderAttack
+                      ? isDefensive
+                      : isDiscardPhase
+                      ? true
+                      : isPlayPhase;
+
+                    return (
+                      <CardView
+                        key={card.id}
+                        card={card}
+                        isSelected={isCardSelected}
+                        isPlayable={isCardPlayable}
+                        isDefensiveGlow={isDefensive}
+                        isDiscardSelected={isDiscardSelected}
+                        onClick={() => handleCardClick(card)}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
         )}
       </div>
-
-      {/* Target Selection Modal */}
-      {selectedCardForTarget && myPlayer && (
-        <TargetSelectionModal
-          cardToPlay={selectedCardForTarget}
-          myPlayer={myPlayer}
-          allPlayers={gameState.players}
-          onConfirm={handleConfirmTarget}
-          onCancel={() => setSelectedCardForTarget(null)}
-        />
-      )}
-
-      {/* Reaction Modal */}
-      {gameState.pendingReaction && gameState.pendingReaction.pendingForPlayerId === myId && (
-        <ReactionModal
-          reaction={gameState.pendingReaction}
-          myHand={myPrivateState?.hand || []}
-          myCharacterId={myPrivateState?.character?.id}
-          onReact={handleReaction}
-        />
-      )}
-
-      {/* Discard Excess Cards Modal */}
-      {isDiscardPhase && myPrivateState && myPrivateState.hand.length > myPrivateState.currentHp && (
-        <DiscardModal
-          myHand={myPrivateState.hand}
-          currentHp={myPrivateState.currentHp}
-          onConfirmDiscard={handleDiscardConfirm}
-        />
-      )}
 
       {/* Game Over Modal */}
       {gameState.status === 'game_over' && (

@@ -174,7 +174,8 @@ export class BotAI {
     const player = engine.getPlayerPrivate(botId);
     if (!player) return;
 
-    const excess = player.hand.length - player.currentHp;
+    const maxHandLimit = 7;
+    const excess = player.hand.length - maxHandLimit;
     if (excess <= 0) {
       engine.finishTurn(botId);
       return;
