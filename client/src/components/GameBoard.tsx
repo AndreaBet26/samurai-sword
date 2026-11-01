@@ -59,12 +59,14 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   // Determine eligible cards from hand for defensive reaction
   let eligibleReactionCardIds: string[] = [];
   if (isUnderAttack && reaction && myPrivateState) {
-    if (reaction.type === 'parry_weapon' || reaction.type === 'battle_cry') {
+    if (reaction.type === 'parry_weapon') {
       let cards = myPrivateState.hand.filter(c => c.actionType === 'parry');
       if (myPrivateState.character?.id === 'hanzo' && myPrivateState.hand.length > 1) {
         cards = [...cards, ...myPrivateState.hand.filter(c => c.type === 'weapon')];
       }
       eligibleReactionCardIds = cards.map(c => c.id);
+    } else if (reaction.type === 'battle_cry') {
+      eligibleReactionCardIds = myPrivateState.hand.filter(c => c.actionType === 'parry').map(c => c.id);
     } else if (reaction.type === 'jujutsu') {
       eligibleReactionCardIds = myPrivateState.hand.filter(c => c.type === 'weapon').map(c => c.id);
     }

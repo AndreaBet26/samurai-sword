@@ -139,7 +139,7 @@ export class BotAI {
     const player = engine.getPlayerPrivate(botId);
     if (!player) return;
 
-    if (reaction.type === 'parry_weapon' || reaction.type === 'battle_cry') {
+    if (reaction.type === 'parry_weapon') {
       // Find a Parry card (or Hanzo weapon card)
       const parryCard = player.hand.find(c => c.actionType === 'parry');
       if (parryCard) {
@@ -156,6 +156,14 @@ export class BotAI {
       }
       // Take the damage
       engine.submitReaction(botId, null);
+    } else if (reaction.type === 'battle_cry') {
+      // Grido di Battaglia: la regola impone esclusivamente lo scarto di una Parata (nessuna arma)
+      const parryCard = player.hand.find(c => c.actionType === 'parry');
+      if (parryCard) {
+        engine.submitReaction(botId, parryCard.id);
+      } else {
+        engine.submitReaction(botId, null);
+      }
     } else if (reaction.type === 'jujutsu') {
       // Discard a weapon card if available
       const weaponCard = player.hand.find(c => c.type === 'weapon');

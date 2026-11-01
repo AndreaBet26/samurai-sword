@@ -35,11 +35,8 @@ export const ReactionModal: React.FC<ReactionModalProps> = ({
     }
   } else if (reaction.type === 'battle_cry') {
     title = 'Grido di Battaglia!';
-    description = 'Un avversario ha lanciato un Grido di Battaglia. Gioca una Parata per difenderti, altrimenti subisci 1 danno!';
+    description = 'Un avversario ha lanciato un Grido di Battaglia. Scarta una carta Parata per difenderti, altrimenti subisci 1 danno!';
     eligibleCards = myHand.filter(c => c.actionType === 'parry');
-    if (myCharacterId === 'hanzo' && myHand.length > 1) {
-      eligibleCards = [...eligibleCards, ...myHand.filter(c => c.type === 'weapon')];
-    }
   } else if (reaction.type === 'jujutsu') {
     title = 'Attacco di Jiujitsu!';
     description = 'Un avversario usa una tecnica di Jiujitsu! Scarta una carta Arma per neutralizzarla, oppure subisci 1 danno.';

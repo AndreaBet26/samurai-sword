@@ -48,12 +48,19 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
   const [slashAnimation, setSlashAnimation] = useState(false);
-  const [hasInitialDealt, setHasInitialDealt] = useState(false);
+  const [hasInitialDealt, setHasInitialDealt] = useState(
+    gameState.turnPhase !== 'dealing' && (myPrivateState?.hand?.length ?? 0) > 0
+  );
+  const [dealProgress, setDealProgress] = useState<{ current: number; total: number } | null>(null);
+  const [dealCompleteBanner, setDealCompleteBanner] = useState(false);
+  const [opponentDealtCounts, setOpponentDealtCounts] = useState<Record<string, number>>({});
   const [pendingDeckDraw, setPendingDeckDraw] = useState<{ type: string; count: number } | null>(null);
   const [displayedHand, setDisplayedHand] = useState<CardDef[]>([]);
   const [incomingDrawnCards, setIncomingDrawnCards] = useState<CardDef[]>([]);
+  const [turnBanner, setTurnBanner] = useState<{ playerName: string; isMyTurn: boolean; characterName?: string } | null>(null);
 
   const knownHandIdsRef = useRef<Set<string>>(new Set());
+  const lastTurnPlayerRef = useRef<string>('');
 
   const myId = myPrivateState?.id || '';
   const myPlayer = gameState.players.find(p => p.id === myId);
@@ -62,6 +69,30 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const isDiscardPhase = isMyTurn && gameState.turnPhase === 'discard';
   const isIeyasuDrawPhase = isMyTurn && gameState.turnPhase === 'draw' && myPrivateState?.character?.id === 'ieyasu';
   const turnPlayer = gameState.players.find(p => p.id === gameState.turnPlayerId);
+
+  // Turn Change Banner Detection for smooth transitions
+  useEffect(() => {
+    if (gameState.status !== 'playing' || gameState.turnPhase === 'dealing') return;
+    if (!gameState.turnPlayerId) return;
+
+    if (gameState.turnPlayerId !== lastTurnPlayerRef.current) {
+      lastTurnPlayerRef.current = gameState.turnPlayerId;
+      const player = gameState.players.find(p => p.id === gameState.turnPlayerId);
+      if (player) {
+        setTurnBanner({
+          playerName: player.name,
+          isMyTurn: player.id === myId,
+          characterName: player.character?.name
+        });
+
+        const timer = setTimeout(() => {
+          setTurnBanner(null);
+        }, 2200);
+
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [gameState.turnPlayerId, gameState.status, gameState.turnPhase, myId]);
 
   // Under attack / pending reaction state
   const isUnderAttack = Boolean(
@@ -72,13 +103,17 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   // Determine which cards in hand can parry/defend
   let eligibleReactionCardIds: string[] = [];
   if (isUnderAttack && reaction && myPrivateState) {
-    if (reaction.type === 'parry_weapon' || reaction.type === 'battle_cry') {
+    if (reaction.type === 'parry_weapon') {
       let cards = myPrivateState.hand.filter(c => c.actionType === 'parry');
       if (myPrivateState.character?.id === 'hanzo' && myPrivateState.hand.length > 1) {
         cards = [...cards, ...myPrivateState.hand.filter(c => c.type === 'weapon')];
       }
       eligibleReactionCardIds = cards.map(c => c.id);
+    } else if (reaction.type === 'battle_cry') {
+      // Per Grido di Battaglia la regola impone esclusivamente lo scarto di una Parata (nessuna arma)
+      eligibleReactionCardIds = myPrivateState.hand.filter(c => c.actionType === 'parry').map(c => c.id);
     } else if (reaction.type === 'jujutsu') {
+      // Per Jiujitsu si deve scartare un'Arma
       eligibleReactionCardIds = myPrivateState.hand.filter(c => c.type === 'weapon').map(c => c.id);
     }
   }
@@ -116,12 +151,26 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     }
   }, [myPrivateState?.hand, hasInitialDealt]);
 
+  const handleOpponentCardDelivered = (opId: string) => {
+    setOpponentDealtCounts(prev => ({
+      ...prev,
+      [opId]: (prev[opId] || 0) + 1
+    }));
+  };
+
   const handleInitialDealComplete = () => {
-    setHasInitialDealt(true);
-    if (myPrivateState?.hand) {
-      setDisplayedHand(myPrivateState.hand);
-      knownHandIdsRef.current = new Set(myPrivateState.hand.map(c => c.id));
-    }
+    setDealCompleteBanner(true);
+    setDealProgress(null);
+
+    setTimeout(() => {
+      setHasInitialDealt(true);
+      setDealCompleteBanner(false);
+      if (myPrivateState?.hand) {
+        setDisplayedHand(myPrivateState.hand);
+        knownHandIdsRef.current = new Set(myPrivateState.hand.map(c => c.id));
+      }
+      socket.emit('initial_deal_complete');
+    }, 1500);
   };
 
   const handleCardDeliveredToHand = (card: CardDef) => {
@@ -456,11 +505,20 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         </div>
 
         {/* Turn Status Indicator */}
-        <div className="flex items-center gap-2 bg-black/60 px-4 py-1.5 rounded-full border border-amber-600/50 backdrop-blur-sm shadow-md">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+        <div className="flex items-center gap-2 bg-black/60 px-4 py-1.5 rounded-full border border-amber-600/50 backdrop-blur-sm shadow-md transition-all">
+          <span className={`w-2.5 h-2.5 rounded-full ${gameState.turnPhase === 'dealing' ? 'bg-amber-400 animate-pulse' : 'bg-amber-400 animate-ping'}`} />
           <span className="text-slate-200 text-xs font-semibold">
-            Turno: <strong className="text-amber-300">{turnPlayer?.name || '...'}</strong>
-            {isMyTurn && ' (Tocca a te!)'}
+            {gameState.turnPhase === 'dealing' ? (
+              <span className="text-amber-300 font-bold">Distribuzione Carte in corso...</span>
+            ) : (
+              <>
+                Turno: <strong className="text-amber-300">{turnPlayer?.name || '...'}</strong>
+                {isMyTurn && ' (Tocca a te!)'}
+                <span className="text-slate-400 ml-1.5 font-normal">
+                  ({gameState.turnPhase === 'recover' ? 'Recupero' : gameState.turnPhase === 'draw' ? 'Pesca' : gameState.turnPhase === 'play' ? 'Azione' : gameState.turnPhase === 'discard' ? 'Scarto' : 'Attesa'})
+                </span>
+              </>
+            )}
           </span>
         </div>
 
@@ -504,11 +562,17 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
             const dist = myPlayer ? calculateDistance(gameState.players, myPlayer.id, opponent.id) : 0;
             const diff = myPlayer ? calculateTargetDifficulty(gameState.players, myPlayer, opponent) : 0;
             const canTargetThis = isTargetValid(opponent);
+            const liveHandCount = hasInitialDealt ? opponent.handCount : (opponentDealtCounts[opponent.id] ?? 0);
+            const opponentWithLiveHand = {
+              ...opponent,
+              handCount: liveHandCount,
+              isHarmless: liveHandCount === 0
+            };
 
             return (
               <OpponentTableArea
                 key={opponent.id}
-                player={opponent}
+                player={opponentWithLiveHand}
                 orientation="horizontal"
                 isCurrentTurn={gameState.turnPlayerId === opponent.id}
                 distanceFromMe={dist}
@@ -530,11 +594,17 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
               const dist = myPlayer ? calculateDistance(gameState.players, myPlayer.id, opponent.id) : 0;
               const diff = myPlayer ? calculateTargetDifficulty(gameState.players, myPlayer, opponent) : 0;
               const canTargetThis = isTargetValid(opponent);
+              const liveHandCount = hasInitialDealt ? opponent.handCount : (opponentDealtCounts[opponent.id] ?? 0);
+              const opponentWithLiveHand = {
+                ...opponent,
+                handCount: liveHandCount,
+                isHarmless: liveHandCount === 0
+              };
 
               return (
                 <OpponentTableArea
                   key={opponent.id}
-                  player={opponent}
+                  player={opponentWithLiveHand}
                   orientation="vertical"
                   isCurrentTurn={gameState.turnPlayerId === opponent.id}
                   distanceFromMe={dist}
@@ -633,11 +703,17 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
               const dist = myPlayer ? calculateDistance(gameState.players, myPlayer.id, opponent.id) : 0;
               const diff = myPlayer ? calculateTargetDifficulty(gameState.players, myPlayer, opponent) : 0;
               const canTargetThis = isTargetValid(opponent);
+              const liveHandCount = hasInitialDealt ? opponent.handCount : (opponentDealtCounts[opponent.id] ?? 0);
+              const opponentWithLiveHand = {
+                ...opponent,
+                handCount: liveHandCount,
+                isHarmless: liveHandCount === 0
+              };
 
               return (
                 <OpponentTableArea
                   key={opponent.id}
-                  player={opponent}
+                  player={opponentWithLiveHand}
                   orientation="vertical"
                   isCurrentTurn={gameState.turnPlayerId === opponent.id}
                   distanceFromMe={dist}
@@ -655,17 +731,27 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
 
       {/* BOTTOM COCKPIT: Full width across screen with large prominent cards */}
       <div className="w-full px-6 sm:px-10 pb-2 shrink-0 flex flex-col items-center select-none relative z-30">
-        {/* COMPACT & CLEAN DEFENSE: Small standalone -N ❤️ button to take damage without any tutorial banners */}
+        {/* COMPACT & CLEAN DEFENSE PROMPT */}
         {isUnderAttack && reaction && (
-          <div className="mb-2 flex items-center justify-center">
+          <div className="mb-2 flex items-center justify-center gap-3 bg-red-950/95 border border-red-500/80 px-4 py-1.5 rounded-full shadow-2xl backdrop-blur-md animate-fadeIn">
+            <span className="text-xs font-bold text-red-200 flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
+              {reaction.type === 'battle_cry' ? (
+                <>📢 <strong className="text-amber-300">Grido di Battaglia!</strong> Scarta una <strong className="text-emerald-300">Parata</strong> per difenderti:</>
+              ) : reaction.type === 'jujutsu' ? (
+                <>🥋 <strong className="text-amber-300">Jiujitsu!</strong> Scarta un'<strong className="text-amber-300">Arma</strong> per neutralizzarlo:</>
+              ) : (
+                <>⚔️ Attacco con <strong className="text-amber-300">{reaction.weaponCard?.name || "un'Arma"}</strong> (-{reaction.damage || 1} ❤️):</>
+              )}
+            </span>
+
             <button
               onClick={() => handleReaction(null)}
-              className="bg-red-900/90 hover:bg-red-800 text-white font-black text-xs px-4 py-1.5 rounded-full border border-red-500 shadow-xl flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+              className="bg-red-800 hover:bg-red-700 text-white font-black text-xs px-3.5 py-1 rounded-full border border-red-400 shadow flex items-center gap-1 cursor-pointer transition-transform hover:scale-105 active:scale-95"
               title="Subisci il colpo e perdi punti vita"
             >
-              <HeartCrack className="w-3.5 h-3.5 text-red-300" />
-              <span>-{reaction.damage || 1} ❤️</span>
-              <span className="font-semibold text-red-200">Subisci</span>
+              <HeartCrack className="w-3.5 h-3.5 text-red-200" />
+              <span>Subisci (-{reaction.damage || 1} ❤️)</span>
             </button>
           </div>
         )}
@@ -880,18 +966,82 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         />
       )}
 
+      {/* TURN CHANGE BANNER (ANIMAZIONE FLUIDA AL CAMBIO TURNO) */}
+      {turnBanner && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-60 animate-fadeIn pointer-events-none">
+          <div
+            className={`px-8 py-3 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] border-2 backdrop-blur-xl flex flex-col items-center justify-center transition-all ${
+              turnBanner.isMyTurn
+                ? 'bg-gradient-to-r from-red-950 via-slate-900 to-red-950 border-amber-400 text-amber-300'
+                : 'bg-slate-900/95 border-slate-600 text-slate-100'
+            }`}
+          >
+            <span className="font-title text-base sm:text-lg font-black tracking-wider flex items-center gap-2">
+              {turnBanner.isMyTurn ? (
+                <>
+                  <Sword className="w-5 h-5 text-amber-400 animate-bounce" />
+                  <span>È IL TUO TURNO!</span>
+                  <Sword className="w-5 h-5 text-amber-400 animate-bounce" />
+                </>
+              ) : (
+                <>
+                  <span>Turno di {turnBanner.playerName}</span>
+                </>
+              )}
+            </span>
+            <span className="text-[11px] text-slate-300 font-semibold mt-0.5">
+              {turnBanner.isMyTurn ? 'Fase di Recupero & Pesca' : turnBanner.characterName || 'Guerriero al Tavolo'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* INITIAL DEALING PROGRESS BANNER */}
+      {gameState.turnPhase === 'dealing' && !hasInitialDealt && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-60 animate-fadeIn pointer-events-none">
+          <div className="bg-slate-950/95 border-2 border-amber-500/90 text-amber-200 px-7 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.95)] backdrop-blur-xl flex flex-col items-center">
+            <span className="font-title text-sm font-black flex items-center gap-2 text-amber-300">
+              <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
+              Distribuzione delle Carte a Tutti i Guerrieri
+            </span>
+            {dealProgress && (
+              <span className="text-xs text-slate-300 mt-1 font-mono">
+                Carta {dealProgress.current} di {dealProgress.total}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* DEAL COMPLETE CELEBRATION BANNER */}
+      {dealCompleteBanner && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-60 animate-fadeIn pointer-events-none">
+          <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-2 border-amber-400 text-amber-200 px-9 py-4 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.95)] backdrop-blur-xl flex flex-col items-center">
+            <span className="font-title text-base font-black text-amber-300 flex items-center gap-2">
+              ⚔️ Tutte le carte sono state distribuite a tutti! ⚔️
+            </span>
+            <span className="text-xs text-slate-200 mt-1 font-medium">
+              Il tavolo è pronto: la Via della Spada ha inizio!
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Animated Physical Cards on Table (Dealing, Attacking, Properties, Flying Cards ONE BY ONE) */}
       <TableCardAnimator
         lastPlayedCard={gameState.lastPlayedCard}
         turnPhase={gameState.turnPhase}
         turnPlayerId={gameState.turnPlayerId}
         myId={myId}
+        turnOrder={gameState.turnOrder}
         opponentIds={opponentsOrdered.map(o => o.id)}
         isInitialDealing={!hasInitialDealt}
         initialHandCards={myPrivateState?.hand || []}
         incomingDrawnCards={incomingDrawnCards}
         onCardDeliveredToHand={handleCardDeliveredToHand}
+        onOpponentCardDelivered={handleOpponentCardDelivered}
         onAllDrawnCardsDelivered={handleAllDrawnDelivered}
+        onInitialDealProgress={(curr, tot) => setDealProgress({ current: curr, total: tot })}
         onInitialDealComplete={handleInitialDealComplete}
       />
 

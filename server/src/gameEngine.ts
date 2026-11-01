@@ -206,10 +206,26 @@ export class GameEngine {
 
     this.state.status = 'playing';
     this.state.turnPlayerId = shogunPlayerId;
-    this.addLog(`La partita è iniziata! Lo Shōgun è ${this.playersPrivate.get(shogunPlayerId)?.name}.`, 'info');
+    this.state.turnPhase = 'dealing';
+    this.addLog(`La partita è iniziata! Distribuzione iniziale delle carte a tutti i guerrieri...`, 'info');
+    this.notifyStateChange();
 
-    this.startTurn(shogunPlayerId);
+    // Fallback safety timeout: if client doesn't signal, automatically proceed after 25s
+    setTimeout(() => {
+      if (this.state.status === 'playing' && this.state.turnPhase === 'dealing') {
+        this.completeInitialDeal();
+      }
+    }, 25000);
+
     return true;
+  }
+
+  public completeInitialDeal() {
+    if (this.state.status !== 'playing' || this.state.turnPhase !== 'dealing') return;
+    const shogunPlayerId = this.state.turnOrder[0];
+    const shogunName = this.playersPrivate.get(shogunPlayerId)?.name || 'Lo Shōgun';
+    this.addLog(`Tutte le carte sono state distribuite a tutti i guerrieri! Lo Shōgun ${shogunName} dà inizio alla battaglia!`, 'info');
+    this.startTurn(shogunPlayerId);
   }
 
   private drawOneCard(): CardDef | null {
@@ -263,7 +279,7 @@ export class GameEngine {
     setTimeout(() => {
       if (this.state.status !== 'playing' || this.state.turnPlayerId !== playerId) return;
       this.proceedToDrawPhase(player);
-    }, 1200);
+    }, 1600);
   }
 
   private handleBushidoCheck(player: PlayerPrivateState, bushidoIndex: number) {
@@ -361,7 +377,7 @@ export class GameEngine {
     setTimeout(() => {
       if (this.state.status !== 'playing' || this.state.turnPlayerId !== player.id) return;
       this.finishDrawPhase(player);
-    }, 1000);
+    }, 1400);
   }
 
   private executeStandardDraw(player: PlayerPrivateState) {
@@ -383,7 +399,7 @@ export class GameEngine {
     setTimeout(() => {
       if (this.state.status !== 'playing' || this.state.turnPlayerId !== player.id) return;
       this.finishDrawPhase(player);
-    }, 1000);
+    }, 1400);
   }
 
   private finishDrawPhase(player: PlayerPrivateState) {
@@ -716,7 +732,7 @@ export class GameEngine {
 
     if (reaction.type === 'parry_weapon') {
       if (responseCardId) {
-        // Must be Parry (or Hanzo weapon)
+        // Deve essere una Parata (o arma se Hanzo con >1 carta)
         const card = player.hand.find(c => c.id === responseCardId);
         const isParry = card?.actionType === 'parry';
         const isHanzoWeapon = player.character?.id === 'hanzo' && card?.type === 'weapon' && player.hand.length > 1;
@@ -739,32 +755,34 @@ export class GameEngine {
           this.notifyStateChange();
           this.checkBotAction();
           return true;
+        } else {
+          return false; // Carta non valida per parare
         }
+      } else {
+        // Nessuna Parata giocata -> Subisce danno
+        const damage = reaction.damage ?? 1;
+        this.inflictDamage(sourcePlayer, player, damage, true);
+        this.state.pendingReaction = null;
+        this.state.turnPhase = 'play';
+        this.notifyStateChange();
+        this.checkBotAction();
+        return true;
       }
-
-      // No Parry played -> Take damage!
-      const damage = reaction.damage ?? 1;
-      this.inflictDamage(sourcePlayer, player, damage, true);
-      this.state.pendingReaction = null;
-      this.state.turnPhase = 'play';
-      this.notifyStateChange();
-      this.checkBotAction();
-      return true;
     }
 
     if (reaction.type === 'battle_cry') {
       if (responseCardId) {
         const card = player.hand.find(c => c.id === responseCardId);
+        // Per Grido di Battaglia la regola ufficiale richiede esclusivamente lo scarto di una carta Parata
         const isParry = card?.actionType === 'parry';
-        const isHanzoWeapon = player.character?.id === 'hanzo' && card?.type === 'weapon' && player.hand.length > 1;
 
-        if (isParry || isHanzoWeapon) {
+        if (isParry) {
           this.removeCardFromHand(player, responseCardId);
           this.discardPile.push(card!);
-          this.triggerCardPlayed(card!, player, `${player.name} para il Grido di Battaglia con ${card!.name}!`, sourcePlayer);
-          this.addLog(`${player.name} si difende dal Grido di Battaglia giocando ${card!.name}.`, 'action');
+          this.triggerCardPlayed(card!, player, `${player.name} scarta ${card!.name} contro il Grido di Battaglia!`, sourcePlayer);
+          this.addLog(`${player.name} scarta una Parata per evitare il danno del Grido di Battaglia.`, 'action');
         } else {
-          this.inflictDamage(sourcePlayer, player, 1, false);
+          return false; // Carta non valida: non si possono scartare armi contro il Grido di Battaglia!
         }
       } else {
         this.inflictDamage(sourcePlayer, player, 1, false);
@@ -783,7 +801,7 @@ export class GameEngine {
           this.triggerCardPlayed(card, player, `${player.name} scarta ${card.name} per il Jiujitsu!`, sourcePlayer);
           this.addLog(`${player.name} scarta l'arma ${card.name} per evitare il Jiujitsu.`, 'action');
         } else {
-          this.inflictDamage(sourcePlayer, player, 1, false);
+          return false; // Carta non valida: per Jiujitsu serve una carta Arma
         }
       } else {
         this.inflictDamage(sourcePlayer, player, 1, false);
@@ -945,11 +963,11 @@ export class GameEngine {
     const nextPlayerId = order[nextIdx];
 
     this.notifyStateChange();
-    // 1.2s delay between turns so player transition is natural and readable
+    // 1.5s delay between turns so player transition is natural and readable
     setTimeout(() => {
       if (this.state.status !== 'playing') return;
       this.startTurn(nextPlayerId);
-    }, 1200);
+    }, 1500);
   }
 
   // --- GAME OVER & SCORING ---
@@ -990,18 +1008,18 @@ export class GameEngine {
   // --- BOT EXECUTION ---
 
   private checkBotAction() {
-    if (this.state.status !== 'playing') return;
+    if (this.state.status !== 'playing' || this.state.turnPhase === 'dealing') return;
 
     // Check reaction pending
     if (this.state.pendingReaction) {
       const targetId = this.state.pendingReaction.pendingForPlayerId;
       const target = this.playersPrivate.get(targetId);
       if (target?.isBot) {
-        // Give 2.2s so everyone sees the attack card before bot reacts
+        // Give 2.4s so everyone sees the attack card before bot reacts
         setTimeout(() => {
-          if (this.state.status !== 'playing') return;
+          if (this.state.status !== 'playing' || !this.state.pendingReaction) return;
           BotAI.respondToReaction(this, targetId);
-        }, 2200);
+        }, 2400);
       }
       return;
     }
@@ -1013,15 +1031,15 @@ export class GameEngine {
     if (this.state.turnPhase === 'play') {
       // Human-like pause while bot assesses the situation and plays: 2.2s
       setTimeout(() => {
-        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id) return;
+        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id || this.state.turnPhase !== 'play') return;
         BotAI.playTurn(this, curr.id);
       }, 2200);
     } else if (this.state.turnPhase === 'discard') {
-      // Pause before bot discards excess: 1.5s
+      // Pause before bot discards excess: 1.6s
       setTimeout(() => {
-        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id) return;
+        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id || this.state.turnPhase !== 'discard') return;
         BotAI.discardDown(this, curr.id);
-      }, 1500);
+      }, 1600);
     }
   }
 

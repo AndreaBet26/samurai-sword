@@ -159,7 +159,7 @@ export const GameHistoryDrawer: React.FC<GameHistoryDrawerProps> = ({
               } else if (log.type === 'heal') {
                 badgeColor = 'bg-emerald-950/80 text-emerald-300 border-emerald-700';
                 badgeLabel = '✨ Cura';
-              } else if (log.type === 'action' || log.type === 'play') {
+              } else if (log.type === 'action' || (log.type as string) === 'play') {
                 badgeColor = 'bg-blue-950/80 text-blue-300 border-blue-700';
                 badgeLabel = '🎴 Giocata';
               }

@@ -68,8 +68,10 @@ export const OpponentTableArea: React.FC<OpponentTableAreaProps> = ({
     <div
       id={`table-opponent-${player.id}`}
       onClick={handleClickTarget}
-      className={`relative flex flex-col items-center select-none transition-all duration-200 shrink-0 ${
-        isTargetable ? 'cursor-pointer scale-105' : ''
+      className={`relative flex flex-col items-center select-none transition-all duration-300 shrink-0 p-1 rounded-2xl ${
+        isTargetable ? 'cursor-pointer scale-105 ring-2 ring-red-500 shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''
+      } ${
+        isCurrentTurn ? 'ring-2 ring-amber-400/90 shadow-[0_0_25px_rgba(245,158,11,0.45)] bg-amber-950/25' : ''
       }`}
     >
       {/* Target Reticle Banner if targetable */}

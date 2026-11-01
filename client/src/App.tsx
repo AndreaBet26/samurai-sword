@@ -74,7 +74,7 @@ export const App: React.FC = () => {
           isHost={isHost}
           onOpenRules={() => setShowRules(true)}
         />
-      ) : showIntro ? (
+      ) : showIntro && myPrivateState?.character && myPrivateState?.role ? (
         <OpeningCutscene
           character={myPrivateState.character}
           role={myPrivateState.role}

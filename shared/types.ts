@@ -111,10 +111,11 @@ export interface PlayerPrivateState extends PlayerPublicState {
 }
 
 export type TurnPhase =
-  | 'recover'      // Check 0 hp recovery, bushido check
-  | 'draw'         // Draw 2 cards (or Ieyasu choice)
-  | 'play'         // Play cards
-  | 'discard'      // Discard down to current HP
+  | 'dealing'        // Distribuzione iniziale delle carte a tutti i giocatori
+  | 'recover'        // Check 0 hp recovery, bushido check
+  | 'draw'           // Draw 2 cards (or Ieyasu choice)
+  | 'play'           // Play cards
+  | 'discard'        // Discard down to current HP
   | 'response_wait'; // Waiting for Parry or Jujutsu response
 
 export interface PendingReaction {

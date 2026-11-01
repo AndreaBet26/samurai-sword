@@ -92,6 +92,16 @@ export class RoomManager {
       }
     });
 
+    // 4b. Initial Deal Complete (received from client when cards finish distributing)
+    socket.on('initial_deal_complete', () => {
+      const mapping = this.socketToPlayer.get(socket.id);
+      if (!mapping) return;
+      const engine = this.rooms.get(mapping.roomCode);
+      if (!engine) return;
+
+      engine.completeInitialDeal();
+    });
+
     // 5. Game Actions
     socket.on('attack_with_weapon', (data: { weaponCardId: string; targetId: string }) => {
       const mapping = this.socketToPlayer.get(socket.id);

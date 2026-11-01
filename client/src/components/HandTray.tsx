@@ -86,15 +86,16 @@ export const HandTray: React.FC<HandTrayProps> = ({
                 key={card.id}
                 style={{
                   marginLeft: `${margin}px`,
-                  zIndex: isSelected ? 50 : isParryCandidate ? 45 : isDiscardSelected ? 40 : idx + 1
+                  zIndex: isSelected ? 50 : isParryCandidate ? 45 : isDiscardSelected ? 40 : idx + 1,
+                  transition: 'margin 350ms cubic-bezier(0.22, 1, 0.36, 1), transform 350ms cubic-bezier(0.22, 1, 0.36, 1)'
                 }}
-                className="relative transition-transform duration-200 shrink-0 animate-fadeIn"
+                className="relative shrink-0 animate-fadeIn"
               >
                 {/* Visual Badges for Defense or Discard */}
                 {isParryCandidate && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-50 animate-bounce pointer-events-none">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-slate-950 font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-50 animate-bounce pointer-events-none whitespace-nowrap">
                     <Shield className="w-3 h-3 text-slate-950" />
-                    Parata!
+                    {card.type === 'weapon' ? 'Usa Arma' : 'Parata!'}
                   </div>
                 )}
 
@@ -111,7 +112,7 @@ export const HandTray: React.FC<HandTrayProps> = ({
                     soundManager.playCardSlide();
                     onCardClick(card);
                   }}
-                  className={`transition-all duration-200 cursor-pointer ${
+                  className={`transition-all duration-300 ease-out cursor-pointer ${
                     isParryCandidate
                       ? '-translate-y-5 scale-105 ring-4 ring-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.9)] rounded-lg'
                       : isDiscardSelected
@@ -120,7 +121,7 @@ export const HandTray: React.FC<HandTrayProps> = ({
                       ? '-translate-y-5 scale-105 ring-4 ring-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] rounded-lg'
                       : isUnderAttack
                       ? 'opacity-35 grayscale-[30%] cursor-not-allowed'
-                      : 'hover:-translate-y-4 hover:scale-105'
+                      : 'hover:-translate-y-5 hover:scale-105'
                   }`}
                 >
                   <TabletopCard

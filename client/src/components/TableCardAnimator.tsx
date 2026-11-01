@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { CardDef, LastPlayedCardAnim } from '../../../shared/types';
 import { TabletopCard } from './TabletopCard';
 import { soundManager } from '../utils/soundEffects';
+import { Sparkles } from 'lucide-react';
 
 interface FlyingCardInstance {
   id: string;
@@ -27,12 +28,15 @@ interface TableCardAnimatorProps {
   turnPhase: string;
   turnPlayerId: string;
   myId: string;
+  turnOrder?: string[];
   opponentIds?: string[];
   isInitialDealing?: boolean;
   initialHandCards?: CardDef[];
   incomingDrawnCards?: CardDef[];
   onCardDeliveredToHand?: (card: CardDef) => void;
+  onOpponentCardDelivered?: (playerId: string) => void;
   onAllDrawnCardsDelivered?: () => void;
+  onInitialDealProgress?: (current: number, total: number) => void;
   onInitialDealComplete?: () => void;
   onInspectCard?: (card: CardDef) => void;
 }
@@ -42,18 +46,23 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
   turnPhase,
   turnPlayerId,
   myId,
+  turnOrder = [],
   opponentIds = [],
   isInitialDealing = false,
   initialHandCards = [],
   incomingDrawnCards = [],
   onCardDeliveredToHand,
+  onOpponentCardDelivered,
   onAllDrawnCardsDelivered,
+  onInitialDealProgress,
   onInitialDealComplete
 }) => {
   const [flyingCards, setFlyingCards] = useState<FlyingCardInstance[]>([]);
   const [activePlayCard, setActivePlayCard] = useState<CardDef | null>(null);
+  const [activePlayCardInfo, setActivePlayCardInfo] = useState<{ sourceName: string; actionText: string } | null>(null);
   const [activeSlash, setActiveSlash] = useState<SlashStrike | null>(null);
   const [clashEffect, setClashEffect] = useState<{ x: number; y: number } | null>(null);
+  const [drawnToast, setDrawnToast] = useState<{ text: string; sub: string; templateId?: string } | null>(null);
 
   const lastPlayedTimestampRef = useRef<number>(0);
   const lastDrawPhaseKeyRef = useRef<string>('');
@@ -93,7 +102,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       const el = document.getElementById('table-play-zone');
       if (el) {
         const r = el.getBoundingClientRect();
-        return { x: r.left, y: r.top };
+        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
       }
       return {
         x: window.innerWidth / 2 - 52,
@@ -106,7 +115,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       const el = document.getElementById('table-deck-pile');
       if (el) {
         const r = el.getBoundingClientRect();
-        return { x: r.left, y: r.top };
+        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
       }
       return {
         x: window.innerWidth / 2 - 140,
@@ -119,7 +128,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       const el = document.getElementById('table-discard-pile');
       if (el) {
         const r = el.getBoundingClientRect();
-        return { x: r.left, y: r.top };
+        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
       }
       return {
         x: window.innerWidth / 2 + 80,
@@ -150,7 +159,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     imageSrc: string,
     fromId: string,
     toId: string,
-    durationMs: number = 300,
+    durationMs: number = 460,
     rotation: number = 0,
     onComplete?: () => void
   ) => {
@@ -183,10 +192,10 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     setTimeout(() => {
       setFlyingCards(prev => prev.filter(c => c.id !== id));
       onComplete?.();
-    }, durationMs + 30);
+    }, durationMs + 40);
   };
 
-  // 1. ANIMAZIONE DI DISTRIBUZIONE INIZIALE (DEAL DI INIZIO PARTITA)
+  // 1. ANIMAZIONE DI DISTRIBUZIONE INIZIALE (DEAL COMPLETO A TUTTI I GIOCATORI PRIMA DI GIOCARE!)
   useEffect(() => {
     if (!isInitialDealing || hasRunInitialDealRef.current) return;
     if (!initialHandCards || initialHandCards.length === 0) return;
@@ -194,55 +203,88 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     hasRunInitialDealRef.current = true;
     soundManager.playRiffleShuffle();
 
-    const cardsToDeal = initialHandCards;
-    const totalRounds = cardsToDeal.length;
+    // Determina l'ordine del tavolo: Shogun per primo, poi in senso orario
+    const seating = turnOrder.length > 0 ? turnOrder : [myId, ...opponentIds];
+    
+    // Regole ufficiali Samurai Sword:
+    // Shogun (indice 0): 4 carte
+    // Giocatori 2 & 3 (indici 1, 2): 5 carte
+    // Giocatori 4 & 5 (indici 3, 4): 6 carte
+    // Giocatori 6 & 7 (indici 5, 6): 7 carte
+    const dealSteps: { playerId: string; round: number; card?: CardDef }[] = [];
+    let myCardIndex = 0;
+
+    for (let r = 0; r < 7; r++) {
+      seating.forEach((pId, seatIdx) => {
+        let targetCards = 4;
+        if (seatIdx === 1 || seatIdx === 2) targetCards = 5;
+        else if (seatIdx === 3 || seatIdx === 4) targetCards = 6;
+        else if (seatIdx >= 5) targetCards = 7;
+
+        if (r < targetCards) {
+          if (pId === myId) {
+            const myCard = initialHandCards[myCardIndex];
+            myCardIndex++;
+            dealSteps.push({ playerId: pId, round: r, card: myCard });
+          } else {
+            dealSteps.push({ playerId: pId, round: r });
+          }
+        }
+      });
+    }
+
+    const totalSteps = dealSteps.length;
+    const stepInterval = 230; // 230ms tra ogni carta per un ritmo calmo e maestoso
     let currentDelay = 400;
 
-    for (let round = 0; round < totalRounds; round++) {
-      // Distribuisce 1 carta a ciascun avversario in senso orario
-      opponentIds.forEach((opId) => {
-        setTimeout(() => {
-          soundManager.playCardSlide();
+    dealSteps.forEach((step, idx) => {
+      setTimeout(() => {
+        soundManager.playCardSlide();
+        onInitialDealProgress?.(idx + 1, totalSteps);
+
+        if (step.playerId === myId) {
+          // Carta per la mano del giocatore locale (atterra a faccia in su con vera immagine)
+          const imgSrc = step.card
+            ? `/assets/cards/${step.card.templateId}.png`
+            : '/assets/ui/card_back.png';
+
+          spawnFlyingCard(
+            imgSrc,
+            'table-deck-pile',
+            'table-player-hand',
+            460,
+            (Math.random() - 0.5) * 4,
+            () => {
+              soundManager.playCardSlam();
+              if (step.card) {
+                onCardDeliveredToHand?.(step.card);
+              }
+            }
+          );
+        } else {
+          // Carta per l'avversario (atterra sul suo posto a faccia in giù)
           spawnFlyingCard(
             '/assets/ui/card_back.png',
             'table-deck-pile',
-            `table-opponent-${opId}`,
-            280,
-            (Math.random() - 0.5) * 8
-          );
-        }, currentDelay);
-        currentDelay += 160;
-      });
-
-      // Distribuisce 1 carta al giocatore locale (atterra nella mano e si rivela!)
-      const cardForPlayer = cardsToDeal[round];
-      setTimeout(() => {
-        soundManager.playCardSlide();
-        const imgSrc = cardForPlayer
-          ? `/assets/cards/${cardForPlayer.templateId}.png`
-          : '/assets/ui/card_back.png';
-
-        spawnFlyingCard(
-          imgSrc,
-          'table-deck-pile',
-          'table-player-hand',
-          320,
-          (Math.random() - 0.5) * 4,
-          () => {
-            soundManager.playCardSlam();
-            if (cardForPlayer) {
-              onCardDeliveredToHand?.(cardForPlayer);
+            `table-opponent-${step.playerId}`,
+            440,
+            (Math.random() - 0.5) * 6,
+            () => {
+              onOpponentCardDelivered?.(step.playerId);
             }
-          }
-        );
+          );
+        }
       }, currentDelay);
-      currentDelay += 360;
-    }
 
+      currentDelay += stepInterval;
+    });
+
+    // A completamento della distribuzione di tutte le carte a tutti
     setTimeout(() => {
+      soundManager.playTaiko();
       onInitialDealComplete?.();
-    }, currentDelay + 300);
-  }, [isInitialDealing, initialHandCards, opponentIds]);
+    }, currentDelay + 600);
+  }, [isInitialDealing, initialHandCards, turnOrder, opponentIds, myId]);
 
   // 2. PESCA DI CARTE NELLA MANO: UNA ALLA VOLTA, CON IMMAGINE DELLA CARTA E ANNUNCIO!
   useEffect(() => {
@@ -257,33 +299,32 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         setTimeout(() => {
           soundManager.playCardSlide();
 
-          // Mostra l'annuncio della carta che sta arrivando
           setDrawnToast({
             text: card.name,
-            sub: `Carta ${idx + 1} di ${total}`
+            sub: `Carta ${idx + 1} di ${total}`,
+            templateId: card.templateId
           });
 
-          // Vola a faccia in su con la vera immagine della carta!
+          // Vola a faccia in su con la vera immagine della carta in modo ultra-fluido!
           spawnFlyingCard(
             `/assets/cards/${card.templateId}.png`,
             'table-deck-pile',
             'table-player-hand',
-            320,
+            480,
             (Math.random() - 0.5) * 4,
             () => {
               soundManager.playCardSlam();
-              // Arrivata nella mano: la fa apparire nel dock della mano
               onCardDeliveredToHand?.(card);
 
               if (idx === total - 1) {
                 setTimeout(() => {
                   setDrawnToast(null);
                   onAllDrawnCardsDelivered?.();
-                }, 600);
+                }, 800);
               }
             }
           );
-        }, idx * 460); // 460ms di intervallo: chiaramente visibili una alla volta!
+        }, idx * 480);
       });
     }
   }, [incomingDrawnCards]);
@@ -301,13 +342,13 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
       // Prima carta all'avversario
       soundManager.playCardSlide();
-      spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 280, -3);
+      spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 440, -3);
 
-      // Seconda carta all'avversario dopo 380ms
+      // Seconda carta all'avversario dopo 400ms
       setTimeout(() => {
         soundManager.playCardSlide();
-        spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 280, 3);
-      }, 380);
+        spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 440, 3);
+      }, 400);
     }
   }, [turnPhase, turnPlayerId, myId, isInitialDealing]);
 
@@ -344,7 +385,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
           `/assets/cards/${card.templateId}.png`,
           sourceId,
           fieldTarget,
-          320,
+          480,
           0,
           () => {
             soundManager.playCardSlam();
@@ -364,7 +405,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
           `/assets/cards/${card.templateId}.png`,
           sourceId,
           bushidoTarget,
-          320,
+          480,
           0,
           () => {
             soundManager.playCardSlam();
@@ -378,13 +419,17 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         `/assets/cards/${card.templateId}.png`,
         sourceId,
         'table-play-zone',
-        300,
-        (Math.random() - 0.5) * 5,
+        480,
+        (Math.random() - 0.5) * 4,
         () => {
           soundManager.playCardSlam();
           setActivePlayCard(card);
+          setActivePlayCardInfo({
+            sourceName: lastPlayedCard.sourcePlayerName,
+            actionText: lastPlayedCard.actionText
+          });
 
-          // Fendente d'attacco direzionale verso l'avversario
+          // Fendente d'attacco direzionale verso il bersaglio
           if (isWeapon && lastPlayedCard.targetPlayerId) {
             const targetId =
               lastPlayedCard.targetPlayerId === myId
@@ -402,13 +447,22 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
             const distance = Math.hypot(endX - startX, endY - startY);
             const angle = (Math.atan2(endY - startY, endX - startX) * 180) / Math.PI;
 
-            soundManager.playSwordSlash();
-            setActiveSlash({ startX, startY, distance, angle });
-
             setTimeout(() => {
-              setActiveSlash(null);
-              soundManager.playTaiko();
-            }, 260);
+              soundManager.playSwordSlash();
+              setActiveSlash({ startX, startY, distance, angle });
+
+              // Target impact shake
+              const targetEl = document.getElementById(targetId);
+              if (targetEl) {
+                targetEl.classList.add('animate-shake');
+                setTimeout(() => targetEl.classList.remove('animate-shake'), 450);
+              }
+
+              setTimeout(() => {
+                setActiveSlash(null);
+                soundManager.playTaiko();
+              }, 320);
+            }, 300);
           }
 
           // Effetto parata
@@ -419,7 +473,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               y: playCoords.y + 74
             });
             soundManager.playParryClash();
-            setTimeout(() => setClashEffect(null), 350);
+            setTimeout(() => setClashEffect(null), 450);
           }
 
           // Cerimonia del te
@@ -428,10 +482,9 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               for (let i = 0; i < 3; i++) {
                 setTimeout(() => {
                   soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 260, -3 + i * 3);
-                }, i * 160);
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 380, -3 + i * 3);
+                }, i * 200);
               }
-              // Invia 1 carta dal mazzo a OGNI ALTRO giocatore sul tavolo (inclusa la tua mano!)
               const otherTargetIds = [
                 ...opponentIds.map(id => `table-opponent-${id}`),
                 'table-player-hand'
@@ -440,10 +493,10 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               otherTargetIds.forEach((targetId, idx) => {
                 setTimeout(() => {
                   soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 260);
-                }, 200 + idx * 100);
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 380);
+                }, 250 + idx * 140);
               });
-            }, 350);
+            }, 400);
           }
 
           // Daimyo
@@ -452,24 +505,25 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               for (let i = 0; i < 2; i++) {
                 setTimeout(() => {
                   soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 260, i === 0 ? -3 : 3);
-                }, i * 180);
+                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 380, i === 0 ? -3 : 3);
+                }, i * 220);
               }
-            }, 300);
+            }, 350);
           }
 
-          // La carta usata scivola nella pila degli scarti in sovraimpressione
+          // La carta usata resta visibile al centro per essere letta, poi scivola dolcemente negli scarti
           setTimeout(() => {
             setActivePlayCard(null);
+            setActivePlayCardInfo(null);
             soundManager.playCardSlide();
             spawnFlyingCard(
               `/assets/cards/${card.templateId}.png`,
               'table-play-zone',
               'table-discard-pile',
-              280,
+              440,
               (Math.random() - 0.5) * 6
             );
-          }, 1000);
+          }, 1600); // 1.6s visibile in centro con banner
         }
       );
     }
@@ -477,7 +531,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
   return (
     <>
-      {/* Carte in volo: dimensioni ampie (104x148px) con animazione scattante e fluida */}
+      {/* Carte in volo: dimensioni 104x148px con fisica ultra-fluida ed elevazione tridimensionale */}
       {flyingCards.map(c => {
         const deltaX = c.endX - c.startX;
         const deltaY = c.endY - c.startY;
@@ -494,12 +548,15 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               zIndex: 75,
               pointerEvents: 'none',
               transform: c.active
-                ? `translate3d(${deltaX}px, ${deltaY}px, 0) rotate(${c.rotation}deg)`
-                : 'translate3d(0, 0, 0) rotate(0deg)',
-              transition: `transform ${c.durationMs}ms cubic-bezier(0.15, 0.9, 0.25, 1), opacity ${c.durationMs}ms ease-out`,
-              opacity: c.active ? 1 : 0.95
+                ? `translate3d(${deltaX}px, ${deltaY}px, 0) rotate(${c.rotation}deg) scale(1)`
+                : 'translate3d(0, 0, 0) rotate(0deg) scale(1.08)',
+              transition: `transform ${c.durationMs}ms cubic-bezier(0.18, 0.89, 0.32, 1), opacity ${c.durationMs}ms ease-out`,
+              boxShadow: c.active
+                ? '0 10px 24px rgba(0,0,0,0.75)'
+                : '0 25px 45px rgba(0,0,0,0.9)',
+              opacity: c.active ? 1 : 0.96
             }}
-            className="rounded-lg shadow-[0_15px_30px_rgba(0,0,0,0.85)] overflow-hidden border border-amber-600/70 bg-slate-900"
+            className="rounded-lg overflow-hidden border border-amber-600/70 bg-slate-900"
           >
             <img
               src={c.imageSrc}
@@ -518,13 +575,13 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
             left: activeSlash.startX,
             top: activeSlash.startY,
             width: `${activeSlash.distance}px`,
-            height: '6px',
+            height: '7px',
             transformOrigin: '0 50%',
             transform: `rotate(${activeSlash.angle}deg)`,
             zIndex: 85,
             pointerEvents: 'none'
           }}
-          className="bg-gradient-to-r from-amber-300 via-red-500 to-white shadow-[0_0_35px_#ef4444] rounded-full animate-slashStrike"
+          className="bg-gradient-to-r from-amber-300 via-red-500 to-white shadow-[0_0_40px_#ef4444] rounded-full animate-slashStrike"
         />
       )}
 
@@ -533,20 +590,20 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         <div
           style={{
             position: 'fixed',
-            left: clashEffect.x - 40,
-            top: clashEffect.y - 40,
-            width: '80px',
-            height: '80px',
+            left: clashEffect.x - 45,
+            top: clashEffect.y - 45,
+            width: '90px',
+            height: '90px',
             zIndex: 90,
             pointerEvents: 'none'
           }}
           className="flex items-center justify-center animate-ping"
         >
-          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-amber-300 via-white to-blue-400 shadow-[0_0_40px_#f59e0b]" />
+          <div className="w-14 h-14 rounded-full bg-gradient-to-r from-amber-300 via-white to-blue-400 shadow-[0_0_45px_#f59e0b]" />
         </div>
       )}
 
-      {/* CARTA GIOCATA: Mostrata in SOVRAIMPRESSIONE al centro tavolo */}
+      {/* CARTA GIOCATA: Mostrata al centro tavolo con banner illustrativo elegante */}
       {activePlayCard && (
         <div
           style={{
@@ -557,14 +614,42 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
             zIndex: 65,
             pointerEvents: 'none'
           }}
-          className="animate-fadeIn drop-shadow-[0_20px_40px_rgba(0,0,0,0.95)]"
+          className="flex flex-col items-center gap-2 animate-fadeIn"
         >
-          <TabletopCard
-            imageSrc={`/assets/cards/${activePlayCard.templateId}.png`}
-            fallbackText={activePlayCard.name}
-            size="md"
-            isSelected={true}
-          />
+          <div className="rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.95)] ring-4 ring-amber-400/80 bg-slate-950">
+            <TabletopCard
+              imageSrc={`/assets/cards/${activePlayCard.templateId}.png`}
+              fallbackText={activePlayCard.name}
+              size="md"
+              isSelected={true}
+            />
+          </div>
+
+          {activePlayCardInfo && (
+            <div className="bg-black/90 border border-amber-500/80 text-amber-200 px-4 py-1.5 rounded-full text-xs font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 max-w-sm text-center">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>{activePlayCardInfo.actionText}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TOAST DELLA CARTA PESCATA: elegante indicatore visivo della carta che entra nella mano */}
+      {drawnToast && (
+        <div className="fixed bottom-48 left-1/2 -translate-x-1/2 z-80 bg-slate-900/95 border border-amber-500/80 text-amber-300 px-5 py-2 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-fadeIn pointer-events-none">
+          {drawnToast.templateId && (
+            <div className="w-6 h-8 rounded overflow-hidden border border-amber-400/60 shrink-0">
+              <img
+                src={`/assets/cards/${drawnToast.templateId}.png`}
+                alt={drawnToast.text}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-black text-slate-100">+1 {drawnToast.text}</span>
+            <span className="text-[10px] text-amber-400 font-semibold">{drawnToast.sub}</span>
+          </div>
         </div>
       )}
     </>
