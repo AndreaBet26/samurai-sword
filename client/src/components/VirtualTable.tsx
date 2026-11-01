@@ -48,10 +48,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
   const [slashAnimation, setSlashAnimation] = useState(false);
-  const [hasInitialDealt, setHasInitialDealt] = useState(() => {
-    // Se la partita è già avviata da tempo (es. refresh), salta l'animazione iniziale
-    return gameState.logs.length > 2;
-  });
+  const [hasInitialDealt, setHasInitialDealt] = useState(false);
   const [pendingDeckDraw, setPendingDeckDraw] = useState<{ type: string; count: number } | null>(null);
   const [displayedHand, setDisplayedHand] = useState<CardDef[]>([]);
   const [incomingDrawnCards, setIncomingDrawnCards] = useState<CardDef[]>([]);
