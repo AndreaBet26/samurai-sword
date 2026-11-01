@@ -48,7 +48,10 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
   const [slashAnimation, setSlashAnimation] = useState(false);
-  const [hasInitialDealt, setHasInitialDealt] = useState(false);
+  const [hasInitialDealt, setHasInitialDealt] = useState(() => {
+    // Se la partita è già avviata da tempo (es. refresh), salta l'animazione iniziale
+    return gameState.logs.length > 2;
+  });
   const [pendingDeckDraw, setPendingDeckDraw] = useState<{ type: string; count: number } | null>(null);
   const [displayedHand, setDisplayedHand] = useState<CardDef[]>([]);
   const [incomingDrawnCards, setIncomingDrawnCards] = useState<CardDef[]>([]);
@@ -133,6 +136,10 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
 
   const handleAllDrawnDelivered = () => {
     setIncomingDrawnCards([]);
+    if (myPrivateState?.hand) {
+      setDisplayedHand(myPrivateState.hand);
+      knownHandIdsRef.current = new Set(myPrivateState.hand.map(c => c.id));
+    }
   };
 
   // Opponents ordered in clockwise circle starting after me
@@ -417,8 +424,11 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   // Recent logs
   const recentLogs = gameState.logs.slice(-2);
 
-  // Visible hand passed to HandTray directly from authoritative private state!
-  const visibleCardsForTray = myPrivateState?.hand || [];
+  // Visible hand: durante la distribuzione iniziale o mentre le carte stanno atterrando,
+  // mostra displayedHand per farle comparire una ad una. A distribuzione completata si sincronizza con myPrivateState.hand!
+  const visibleCardsForTray = (!hasInitialDealt || incomingDrawnCards.length > 0)
+    ? displayedHand
+    : (myPrivateState?.hand || []);
 
   return (
     <div
@@ -881,6 +891,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         myId={myId}
         opponentIds={opponentsOrdered.map(o => o.id)}
         isInitialDealing={!hasInitialDealt}
+        initialHandCards={myPrivateState?.hand || []}
         incomingDrawnCards={incomingDrawnCards}
         onCardDeliveredToHand={handleCardDeliveredToHand}
         onAllDrawnCardsDelivered={handleAllDrawnDelivered}

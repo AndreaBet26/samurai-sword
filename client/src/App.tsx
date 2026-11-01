@@ -4,11 +4,13 @@ import { GameState, PlayerPrivateState } from '../../shared/types';
 import { LobbyView } from './components/LobbyView';
 import { VirtualTable } from './components/VirtualTable';
 import { RulesModal } from './components/RulesModal';
+import { OpeningCutscene } from './components/OpeningCutscene';
 
 export const App: React.FC = () => {
   const [currentRoomCode, setCurrentRoomCode] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [hasSeenIntro, setHasSeenIntro] = useState(false);
   const [gameState, setGameState] = useState<GameState>({
     roomCode: '',
     status: 'lobby',
@@ -49,11 +51,19 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // When returning to lobby, reset intro state
+  useEffect(() => {
+    if (gameState.status === 'lobby') {
+      setHasSeenIntro(false);
+    }
+  }, [gameState.status]);
+
   const handleReturnToLobby = () => {
     window.location.reload();
   };
 
   const isGameActive = gameState.status === 'playing' || gameState.status === 'game_over';
+  const showIntro = gameState.status === 'playing' && !hasSeenIntro && myPrivateState?.character && myPrivateState?.role;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans">
@@ -63,6 +73,14 @@ export const App: React.FC = () => {
           players={gameState.players}
           isHost={isHost}
           onOpenRules={() => setShowRules(true)}
+        />
+      ) : showIntro ? (
+        <OpeningCutscene
+          character={myPrivateState.character}
+          role={myPrivateState.role}
+          players={gameState.players}
+          myPlayerId={myPrivateState.id}
+          onComplete={() => setHasSeenIntro(true)}
         />
       ) : (
         <VirtualTable

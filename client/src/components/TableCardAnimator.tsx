@@ -29,6 +29,7 @@ interface TableCardAnimatorProps {
   myId: string;
   opponentIds?: string[];
   isInitialDealing?: boolean;
+  initialHandCards?: CardDef[];
   incomingDrawnCards?: CardDef[];
   onCardDeliveredToHand?: (card: CardDef) => void;
   onAllDrawnCardsDelivered?: () => void;
@@ -43,6 +44,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
   myId,
   opponentIds = [],
   isInitialDealing = false,
+  initialHandCards = [],
   incomingDrawnCards = [],
   onCardDeliveredToHand,
   onAllDrawnCardsDelivered,
@@ -190,30 +192,56 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       hasRunInitialDealRef.current = true;
       soundManager.playRiffleShuffle();
 
-      const targets = [...opponentIds.map(id => `table-opponent-${id}`), 'table-player-hand'];
-      let delay = 250;
+      const cardsToDeal = initialHandCards || [];
+      const totalRounds = Math.max(cardsToDeal.length, 4);
+      let currentDelay = 350;
 
-      for (let round = 0; round < 2; round++) {
-        targets.forEach((targetId) => {
+      for (let round = 0; round < totalRounds; round++) {
+        // Distribuisce 1 carta a ciascun avversario in senso orario
+        opponentIds.forEach((opId) => {
           setTimeout(() => {
             soundManager.playCardSlide();
             spawnFlyingCard(
               '/assets/ui/card_back.png',
               'table-deck-pile',
-              targetId,
-              260,
-              (Math.random() - 0.5) * 6
+              `table-opponent-${opId}`,
+              280,
+              (Math.random() - 0.5) * 8
             );
-          }, delay);
-          delay += 100;
+          }, currentDelay);
+          currentDelay += 160;
         });
+
+        // Distribuisce 1 carta al giocatore locale (atterra nella mano e si rivela!)
+        const cardForPlayer = cardsToDeal[round];
+        setTimeout(() => {
+          soundManager.playCardSlide();
+          const imgSrc = cardForPlayer
+            ? `/assets/cards/${cardForPlayer.templateId}.png`
+            : '/assets/ui/card_back.png';
+
+          spawnFlyingCard(
+            imgSrc,
+            'table-deck-pile',
+            'table-player-hand',
+            320,
+            (Math.random() - 0.5) * 4,
+            () => {
+              soundManager.playCardSlam();
+              if (cardForPlayer) {
+                onCardDeliveredToHand?.(cardForPlayer);
+              }
+            }
+          );
+        }, currentDelay);
+        currentDelay += 340;
       }
 
       setTimeout(() => {
         onInitialDealComplete?.();
-      }, delay + 300);
+      }, currentDelay + 300);
     }
-  }, [isInitialDealing]);
+  }, [isInitialDealing, initialHandCards, opponentIds]);
 
   // 2. PESCA DI CARTE NELLA MANO: UNA ALLA VOLTA, CON IMMAGINE DELLA CARTA E ANNUNCIO!
   useEffect(() => {

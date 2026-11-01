@@ -88,7 +88,7 @@ export const HandTray: React.FC<HandTrayProps> = ({
                   marginLeft: `${margin}px`,
                   zIndex: isSelected ? 50 : isParryCandidate ? 45 : isDiscardSelected ? 40 : idx + 1
                 }}
-                className="relative transition-transform duration-200 shrink-0"
+                className="relative transition-transform duration-200 shrink-0 animate-fadeIn"
               >
                 {/* Visual Badges for Defense or Discard */}
                 {isParryCandidate && (
