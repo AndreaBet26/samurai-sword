@@ -245,8 +245,8 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         if (step.playerId === myId) {
           // Carta per la mano del giocatore locale (atterra a faccia in su con vera immagine)
           const imgSrc = step.card
-            ? `/assets/cards/${step.card.templateId}.png`
-            : '/assets/ui/card_back.png';
+            ? `/assets/cards/${step.card.templateId}.webp`
+            : '/assets/ui/card_back.webp';
 
           spawnFlyingCard(
             imgSrc,
@@ -264,7 +264,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         } else {
           // Carta per l'avversario (atterra sul suo posto a faccia in giù)
           spawnFlyingCard(
-            '/assets/ui/card_back.png',
+            '/assets/ui/card_back.webp',
             'table-deck-pile',
             `table-opponent-${step.playerId}`,
             440,
@@ -299,15 +299,9 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         setTimeout(() => {
           soundManager.playCardSlide();
 
-          setDrawnToast({
-            text: card.name,
-            sub: `Carta ${idx + 1} di ${total}`,
-            templateId: card.templateId
-          });
-
           // Vola a faccia in su con la vera immagine della carta in modo ultra-fluido!
           spawnFlyingCard(
-            `/assets/cards/${card.templateId}.png`,
+            `/assets/cards/${card.templateId}.webp`,
             'table-deck-pile',
             'table-player-hand',
             480,
@@ -317,10 +311,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               onCardDeliveredToHand?.(card);
 
               if (idx === total - 1) {
-                setTimeout(() => {
-                  setDrawnToast(null);
-                  onAllDrawnCardsDelivered?.();
-                }, 800);
+                setTimeout(() => onAllDrawnCardsDelivered?.(), 300);
               }
             }
           );
@@ -329,28 +320,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
     }
   }, [incomingDrawnCards]);
 
-  // 3. ANIMAZIONE AUTOMATICA DI PESCA PER GLI AVVERSARI (UNA ALLA VOLTA)
-  useEffect(() => {
-    if (turnPhase === 'draw' && !isInitialDealing && turnPlayerId !== myId) {
-      const drawKey = `${turnPlayerId}-${Date.now()}`;
-      if (lastDrawPhaseKeyRef.current && Date.now() - parseInt(lastDrawPhaseKeyRef.current.split('-')[1] || '0') < 2000) {
-        return;
-      }
-      lastDrawPhaseKeyRef.current = drawKey;
-
-      const targetId = `table-opponent-${turnPlayerId}`;
-
-      // Prima carta all'avversario
-      soundManager.playCardSlide();
-      spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 440, -3);
-
-      // Seconda carta all'avversario dopo 400ms
-      setTimeout(() => {
-        soundManager.playCardSlide();
-        spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 440, 3);
-      }, 400);
-    }
-  }, [turnPhase, turnPlayerId, myId, isInitialDealing]);
+  // 3. La pesca degli avversari ora è animata da EffectsLayer (eventi "draw" dal server, numero esatto di carte)
 
   // 4. ANIMAZIONE DI GIOCATA, TERRENO, ATTACCHI E SCARTI
   useEffect(() => {
@@ -379,10 +349,10 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         const fieldTarget =
           lastPlayedCard.sourcePlayerId === myId
             ? 'table-player-field'
-            : `table-opponent-${lastPlayedCard.sourcePlayerId}`;
+            : `table-field-${lastPlayedCard.sourcePlayerId}`;
 
         spawnFlyingCard(
-          `/assets/cards/${card.templateId}.png`,
+          `/assets/cards/${card.templateId}.webp`,
           sourceId,
           fieldTarget,
           480,
@@ -399,10 +369,10 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         const bushidoTarget =
           lastPlayedCard.targetPlayerId === myId
             ? 'table-player-field'
-            : `table-opponent-${lastPlayedCard.targetPlayerId}`;
+            : `table-field-${lastPlayedCard.targetPlayerId}`;
 
         spawnFlyingCard(
-          `/assets/cards/${card.templateId}.png`,
+          `/assets/cards/${card.templateId}.webp`,
           sourceId,
           bushidoTarget,
           480,
@@ -416,7 +386,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
       // CASE C: ARMI, AZIONI, PARATA -> Volano sul panno centrale
       spawnFlyingCard(
-        `/assets/cards/${card.templateId}.png`,
+        `/assets/cards/${card.templateId}.webp`,
         sourceId,
         'table-play-zone',
         480,
@@ -424,106 +394,21 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         () => {
           soundManager.playCardSlam();
           setActivePlayCard(card);
-          setActivePlayCardInfo({
-            sourceName: lastPlayedCard.sourcePlayerName,
-            actionText: lastPlayedCard.actionText
-          });
 
-          // Fendente d'attacco direzionale verso il bersaglio
-          if (isWeapon && lastPlayedCard.targetPlayerId) {
-            const targetId =
-              lastPlayedCard.targetPlayerId === myId
-                ? 'table-player-hand'
-                : `table-opponent-${lastPlayedCard.targetPlayerId}`;
-
-            const playCoords = getTargetCoords('table-play-zone');
-            const targetCoords = getTargetCoords(targetId);
-
-            const startX = playCoords.x + 52;
-            const startY = playCoords.y + 74;
-            const endX = targetCoords.x + 52;
-            const endY = targetCoords.y + 74;
-
-            const distance = Math.hypot(endX - startX, endY - startY);
-            const angle = (Math.atan2(endY - startY, endX - startX) * 180) / Math.PI;
-
-            setTimeout(() => {
-              soundManager.playSwordSlash();
-              setActiveSlash({ startX, startY, distance, angle });
-
-              // Target impact shake
-              const targetEl = document.getElementById(targetId);
-              if (targetEl) {
-                targetEl.classList.add('animate-shake');
-                setTimeout(() => targetEl.classList.remove('animate-shake'), 450);
-              }
-
-              setTimeout(() => {
-                setActiveSlash(null);
-                soundManager.playTaiko();
-              }, 320);
-            }, 300);
-          }
-
-          // Effetto parata
-          if (isParry) {
-            const playCoords = getTargetCoords('table-play-zone');
-            setClashEffect({
-              x: playCoords.x + 52,
-              y: playCoords.y + 74
-            });
-            soundManager.playParryClash();
-            setTimeout(() => setClashEffect(null), 450);
-          }
-
-          // Cerimonia del te
-          if (isTea) {
-            setTimeout(() => {
-              for (let i = 0; i < 3; i++) {
-                setTimeout(() => {
-                  soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 380, -3 + i * 3);
-                }, i * 200);
-              }
-              const otherTargetIds = [
-                ...opponentIds.map(id => `table-opponent-${id}`),
-                'table-player-hand'
-              ].filter(id => id !== sourceId);
-
-              otherTargetIds.forEach((targetId, idx) => {
-                setTimeout(() => {
-                  soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', targetId, 380);
-                }, 250 + idx * 140);
-              });
-            }, 400);
-          }
-
-          // Daimyo
-          if (isDaimyo) {
-            setTimeout(() => {
-              for (let i = 0; i < 2; i++) {
-                setTimeout(() => {
-                  soundManager.playCardSlide();
-                  spawnFlyingCard('/assets/ui/card_back.png', 'table-deck-pile', sourceId, 380, i === 0 ? -3 : 3);
-                }, i * 220);
-              }
-            }, 350);
-          }
+          // Taglio, parata e carte pescate sono animati da EffectsLayer (un solo effetto per azione)
 
           // La carta usata resta visibile al centro per essere letta, poi scivola dolcemente negli scarti
           setTimeout(() => {
             setActivePlayCard(null);
-            setActivePlayCardInfo(null);
             soundManager.playCardSlide();
             spawnFlyingCard(
-              `/assets/cards/${card.templateId}.png`,
+              `/assets/cards/${card.templateId}.webp`,
               'table-play-zone',
               'table-discard-pile',
               440,
               (Math.random() - 0.5) * 6
             );
-          }, 1600); // 1.6s visibile in centro con banner
+          }, 1300); // la carta resta leggibile al centro, poi va negli scarti
         }
       );
     }
@@ -568,40 +453,8 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
       })}
 
       {/* Raggio fendente dell'arma verso il bersaglio */}
-      {activeSlash && (
-        <div
-          style={{
-            position: 'fixed',
-            left: activeSlash.startX,
-            top: activeSlash.startY,
-            width: `${activeSlash.distance}px`,
-            height: '7px',
-            transformOrigin: '0 50%',
-            transform: `rotate(${activeSlash.angle}deg)`,
-            zIndex: 85,
-            pointerEvents: 'none'
-          }}
-          className="bg-gradient-to-r from-amber-300 via-red-500 to-white shadow-[0_0_40px_#ef4444] rounded-full animate-slashStrike"
-        />
-      )}
 
       {/* Scintille dello scontro di Parata */}
-      {clashEffect && (
-        <div
-          style={{
-            position: 'fixed',
-            left: clashEffect.x - 45,
-            top: clashEffect.y - 45,
-            width: '90px',
-            height: '90px',
-            zIndex: 90,
-            pointerEvents: 'none'
-          }}
-          className="flex items-center justify-center animate-ping"
-        >
-          <div className="w-14 h-14 rounded-full bg-gradient-to-r from-amber-300 via-white to-blue-400 shadow-[0_0_45px_#f59e0b]" />
-        </div>
-      )}
 
       {/* CARTA GIOCATA: Mostrata al centro tavolo con banner illustrativo elegante */}
       {activePlayCard && (
@@ -618,40 +471,16 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         >
           <div className="rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.95)] ring-4 ring-amber-400/80 bg-slate-950">
             <TabletopCard
-              imageSrc={`/assets/cards/${activePlayCard.templateId}.png`}
+              imageSrc={`/assets/cards/${activePlayCard.templateId}.webp`}
               fallbackText={activePlayCard.name}
               size="md"
               isSelected={true}
             />
           </div>
 
-          {activePlayCardInfo && (
-            <div className="bg-black/90 border border-amber-500/80 text-amber-200 px-4 py-1.5 rounded-full text-xs font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 max-w-sm text-center">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>{activePlayCardInfo.actionText}</span>
-            </div>
-          )}
         </div>
       )}
 
-      {/* TOAST DELLA CARTA PESCATA: elegante indicatore visivo della carta che entra nella mano */}
-      {drawnToast && (
-        <div className="fixed bottom-48 left-1/2 -translate-x-1/2 z-80 bg-slate-900/95 border border-amber-500/80 text-amber-300 px-5 py-2 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-3 animate-fadeIn pointer-events-none">
-          {drawnToast.templateId && (
-            <div className="w-6 h-8 rounded overflow-hidden border border-amber-400/60 shrink-0">
-              <img
-                src={`/assets/cards/${drawnToast.templateId}.png`}
-                alt={drawnToast.text}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-          <div className="flex flex-col text-left">
-            <span className="text-xs font-black text-slate-100">+1 {drawnToast.text}</span>
-            <span className="text-[10px] text-amber-400 font-semibold">{drawnToast.sub}</span>
-          </div>
-        </div>
-      )}
     </>
   );
 };

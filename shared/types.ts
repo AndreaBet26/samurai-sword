@@ -7,6 +7,8 @@ export interface RoleDef {
   team: 'shogun' | 'ninja' | 'ronin';
   isRevealed: boolean;
   color: string;
+  /** Solo Ninja: stelle sulla carta (1-3). In 4 giocatori raddoppia il Ninja con più stelle. */
+  stars?: number;
 }
 
 export type CharacterId =
@@ -97,8 +99,10 @@ export interface PlayerPublicState {
   currentHp: number;
   maxHp: number;
   honorPoints: number;
-  isHarmless: boolean; // 0 cards in hand
+  isHarmless: boolean; // 0 carte in mano OPPURE 0 Resistenza (regola ufficiale)
   isDefeatedThisRound: boolean; // at 0 HP waiting for turn recovery
+  isConnected: boolean; // false se il giocatore umano ha perso la connessione
+  isAway: boolean; // true se un bot sta giocando al posto del giocatore disconnesso
   handCount: number;
   propertiesInPlay: CardDef[];
   weaponsPlayedThisTurn: number;
@@ -119,7 +123,7 @@ export type TurnPhase =
   | 'response_wait'; // Waiting for Parry or Jujutsu response
 
 export interface PendingReaction {
-  type: 'parry_weapon' | 'battle_cry' | 'jujutsu' | 'bushido';
+  type: 'parry_weapon' | 'battle_cry' | 'jujutsu' | 'bushido'; // bushido: scegli se scartare un'Arma o perdere 1 Onore
   sourcePlayerId: string;
   targetPlayerIds: string[]; // pending responses
   weaponCard?: CardDef;
@@ -151,6 +155,30 @@ export interface LastPlayedCardAnim {
   timestamp: number;
 }
 
+/**
+ * Eventi di gioco per le animazioni del client (danni, parate, onore, carte in volo...).
+ * Ogni evento ha un id crescente: il client anima solo quelli che non ha ancora visto.
+ */
+export type GameEvent = { id: number; at: number } & (
+  | { kind: 'damage'; targetId: string; sourceId: string; amount: number; weapon: boolean; hpLeft: number }
+  | { kind: 'parry'; playerId: string; sourceId: string; cardTemplateId: string; against: 'weapon' | 'battle_cry' | 'jujutsu' }
+  | { kind: 'defeat'; targetId: string; attackerId: string }
+  | { kind: 'honor_transfer'; fromId: string; toId: string }
+  | { kind: 'honor_loss'; playerIds: string[]; reason: 'reshuffle' | 'bushido' }
+  | { kind: 'reshuffle' }
+  | { kind: 'draw'; playerId: string; fromDiscard?: boolean; cardTemplateId?: string }
+  | { kind: 'steal'; fromId: string; toId: string }
+  | { kind: 'discard_from_hand'; playerId: string; cardTemplateId: string }
+  | { kind: 'property_removed'; playerId: string; cardTemplateId: string }
+  | { kind: 'bushido_reveal'; playerId: string; cardTemplateId: string; isWeapon: boolean }
+  | { kind: 'bushido_pass'; fromId: string; toId: string }
+  | { kind: 'heal'; playerId: string; amount: number; reason: 'breathing' | 'recover' }
+  | { kind: 'game_over'; winnerTeam: 'shogun' | 'ninja' | 'ronin' | 'draw'; endReason: 'honor' | 'swordmaster' }
+);
+
+/** Distribuisce Omit sulle varianti dell'unione (per creare eventi senza id/at) */
+export type GameEventInput = GameEvent extends infer E ? (E extends any ? Omit<E, 'id' | 'at'> : never) : never;
+
 export interface GameState {
   roomCode: string;
   status: 'lobby' | 'playing' | 'game_over';
@@ -162,13 +190,24 @@ export interface GameState {
   deckCount: number;
   discardPileCount: number;
   pendingReaction: PendingReaction | null;
+  /** Giocatore umano che deve decidere e quanto tempo gli resta (ms, calcolato all'invio) */
+  decisionPlayerId?: string | null;
+  decisionMsLeft?: number | null;
   lastPlayedCard: LastPlayedCardAnim | null;
   logs: GameLogEntry[];
+  /** Ultimi eventi di gioco da animare (vedi GameEvent) */
+  events: GameEvent[];
   winnerTeam?: 'shogun' | 'ninja' | 'ronin' | 'draw';
   finalScores?: {
     shogunSamurai: number;
     ninja: number;
     ronin: number;
+    /** honor = qualcuno ha finito i Punti Onore; swordmaster = Vittoria del Maestro di Spada */
+    endReason: 'honor' | 'swordmaster';
+    /** Squadra penalizzata di 3 punti dal Colpo Mortale (ha abbattuto un compagno chiudendo la partita) */
+    deadlyStrikeTeam?: 'shogun' | 'ninja' | 'ronin';
+    /** Spiegazione leggibile di come è finita la partita */
+    summary: string;
     playerScores: {
       playerId: string;
       name: string;

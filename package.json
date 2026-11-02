@@ -9,22 +9,21 @@
     "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "vite client --port 5173",
     "dev": "node scripts/dev.js",
-    "build": "vite build client"
+    "build": "vite build client",
+    "test": "tsx tests/run-tests.ts",
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.0",
-    "@types/three": "^0.187.0",
     "canvas-confetti": "^1.9.4",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "gsap": "^3.15.0",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.0.0",
-    "three": "^0.187.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

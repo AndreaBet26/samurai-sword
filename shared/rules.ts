@@ -1,8 +1,19 @@
 import { PlayerPublicState, CardDef, GameState, RoleDef } from './types';
+import { getScoreMultiplier } from './rolesData';
+
+/**
+ * Regola ufficiale: un giocatore è Inoffensivo se non ha carte in mano
+ * OPPURE se non ha più punti Resistenza (abbattuto, fino al suo prossimo turno).
+ * Un Inoffensivo non può essere bersaglio di Armi, non subisce Grido di Battaglia
+ * e Jiujitsu e viene saltato nel calcolo delle distanze.
+ */
+export function isPlayerHarmless(handCount: number, currentHp: number): boolean {
+  return handCount <= 0 || currentHp <= 0;
+}
 
 /**
  * Calculates the shortest distance between player fromId and targetId around the circle.
- * In Samurai Sword, Harmless players (players with 0 cards in hand) are skipped
+ * In Samurai Sword, Harmless players (0 cards in hand OR 0 resistance) are skipped
  * when counting distances between players.
  */
 export function calculateDistance(
@@ -84,13 +95,13 @@ export function canAttackWithWeapon(
     return { canAttack: false, reason: 'Non puoi attaccare te stesso.' };
   }
 
-  // Harmless check
-  if (target.isHarmless) {
-    return { canAttack: false, reason: 'Il bersaglio è Inoffensivo (non ha carte in mano) e non può essere attaccato.' };
+  // Harmless check (0 carte in mano oppure 0 Resistenza)
+  if (target.currentHp <= 0) {
+    return { canAttack: false, reason: 'Il bersaglio è stato abbattuto ed è Inoffensivo fino al suo prossimo turno.' };
   }
 
-  if (target.currentHp <= 0) {
-    return { canAttack: false, reason: 'Il bersaglio è già a 0 punti ferita.' };
+  if (target.isHarmless) {
+    return { canAttack: false, reason: 'Il bersaglio è Inoffensivo (non ha carte in mano) e non può essere attaccato.' };
   }
 
   // Kojiro ignores weapon difficulty!
@@ -140,39 +151,37 @@ export function calculateAttackDamage(
   return baseDamage;
 }
 
+type Team = 'shogun' | 'ninja' | 'ronin';
+
+export interface FinalScoreOptions {
+  /** Squadra che ha chiuso la partita abbattendo un proprio compagno: -3 punti (Colpo Mortale) */
+  deadlyStrikeTeam?: Team;
+  /** Vittoria del Maestro di Spada: vince subito la squadra dell'unico giocatore con Resistenza */
+  swordmasterTeam?: Team;
+}
+
 /**
- * Calculates final scores and determines the winning team.
+ * Calcola i punteggi finali e la squadra vincitrice secondo le regole ufficiali:
+ * - Onore x moltiplicatore del ruolo (vedi getScoreMultiplier) + 1 per ogni Daimyo in mano (0 per il Ronin, mai moltiplicato)
+ * - Colpo Mortale: -3 alla squadra che ha chiuso la partita abbattendo un compagno
+ * - Pareggi: i Ninja vincono ogni pareggio; Shōgun & Samurai vincono il pareggio con il Ronin
  */
 export function calculateFinalScores(
-  players: (PlayerPublicState & { role: RoleDef; hand: CardDef[] })[]
+  players: (PlayerPublicState & { role: RoleDef; hand: CardDef[] })[],
+  options: FinalScoreOptions = {}
 ) {
   const playerCount = players.length;
-  const roninMultiplier = playerCount >= 6 ? 3 : 2;
+  const maxNinjaStars = Math.max(0, ...players.filter(p => p.role.id === 'ninja').map(p => p.role.stars ?? 0));
 
-  let shogunSamuraiScore = 0;
-  let ninjaScore = 0;
-  let roninScore = 0;
+  const teamTotals: Record<Team, number> = { shogun: 0, ninja: 0, ronin: 0 };
 
   const playerScores = players.map(p => {
-    // Count Daimyo cards in hand
-    // Note: Daimyo in hand gives +1 Honor Point to Shogun, Samurai, and Ninja. Ronin gets 0 from Daimyo.
     const daimyoCount = p.hand.filter(c => c.actionType === 'daimyo').length;
     const daimyoBonus = p.role.id === 'ronin' ? 0 : daimyoCount;
+    const multiplier = getScoreMultiplier(playerCount, p.role, maxNinjaStars);
+    const totalScore = p.honorPoints * multiplier + daimyoBonus;
 
-    let multiplier = 1;
-    if (p.role.id === 'ronin') {
-      multiplier = roninMultiplier;
-    }
-
-    const totalScore = (p.honorPoints * multiplier) + daimyoBonus;
-
-    if (p.role.team === 'shogun') {
-      shogunSamuraiScore += totalScore;
-    } else if (p.role.team === 'ninja') {
-      ninjaScore += totalScore;
-    } else if (p.role.team === 'ronin') {
-      roninScore += totalScore;
-    }
+    teamTotals[p.role.team] += totalScore;
 
     return {
       playerId: p.id,
@@ -185,21 +194,26 @@ export function calculateFinalScores(
     };
   });
 
-  let winnerTeam: 'shogun' | 'ninja' | 'ronin' | 'draw' = 'draw';
-  if (shogunSamuraiScore > ninjaScore && shogunSamuraiScore > roninScore) {
-    winnerTeam = 'shogun';
-  } else if (ninjaScore > shogunSamuraiScore && ninjaScore > roninScore) {
-    winnerTeam = 'ninja';
-  } else if (roninScore > shogunSamuraiScore && roninScore > ninjaScore) {
-    winnerTeam = 'ronin';
-  } else {
-    winnerTeam = 'draw';
+  if (options.deadlyStrikeTeam) {
+    teamTotals[options.deadlyStrikeTeam] -= 3;
+  }
+
+  // Squadre effettivamente presenti al tavolo, in ordine di priorità negli spareggi
+  const presentTeams = (['ninja', 'shogun', 'ronin'] as Team[]).filter(t => players.some(p => p.role.team === t));
+
+  let winnerTeam: Team | 'draw' = 'draw';
+  if (options.swordmasterTeam) {
+    winnerTeam = options.swordmasterTeam;
+  } else if (presentTeams.length > 0) {
+    const best = Math.max(...presentTeams.map(t => teamTotals[t]));
+    // il primo team (per priorità) con il punteggio massimo vince lo spareggio
+    winnerTeam = presentTeams.find(t => teamTotals[t] === best)!;
   }
 
   return {
-    shogunSamurai: shogunSamuraiScore,
-    ninja: ninjaScore,
-    ronin: roninScore,
+    shogunSamurai: teamTotals.shogun,
+    ninja: teamTotals.ninja,
+    ronin: teamTotals.ronin,
     playerScores,
     winnerTeam
   };

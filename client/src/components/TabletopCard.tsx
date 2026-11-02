@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export type CardSize = 'xs' | 'sm' | 'md' | 'lg' | 'player' | 'hand' | 'zoom';
+export type CardSize = 'xs' | 'table' | 'sm' | 'seat' | 'md' | 'lg' | 'player' | 'hand' | 'zoom';
 
 interface TabletopCardProps {
   imageSrc: string;
@@ -28,10 +28,12 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
   // Generous pixel-perfect dimensions with standard card ratio 1 : 1.42
   const sizeStyles: Record<CardSize, { width: string; height: string; borderRadius: string }> = {
     xs: { width: '40px', height: '57px', borderRadius: '4px' },
+    table: { width: '62px', height: '88px', borderRadius: '5px' }, // carte appoggiate nella zona di gioco
     sm: { width: '72px', height: '102px', borderRadius: '6px' },
+    seat: { width: '88px', height: '125px', borderRadius: '7px' }, // personaggio/ruolo degli avversari
     md: { width: '104px', height: '148px', borderRadius: '8px' },
     lg: { width: '130px', height: '185px', borderRadius: '10px' },
-    hand: { width: '136px', height: '193px', borderRadius: '10px' },
+    hand: { width: '150px', height: '213px', borderRadius: '11px' }, // carte in mano: le più grandi
     player: { width: '112px', height: '159px', borderRadius: '9px' },
     zoom: { width: '310px', height: '440px', borderRadius: '18px' }
   };

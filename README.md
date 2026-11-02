@@ -8,13 +8,15 @@ Progettato per essere giocato direttamente da browser web (PC, tablet o smartpho
 ## 🌟 Caratteristiche Principali
 
 - **Fedeltà alle Regole Ufficiali:**
-  - **Nessuna Eliminazione:** Quando un giocatore va a 0 PV (Resistenza), cede 1 Punto Onore (🪷) a chi lo ha abbattuto, scarta le carte e diventa *Inoffensivo* fino al suo prossimo turno, quando recupera la vita al massimo.
-  - **4 Fasi di Turno:** Recupero (gestione sconfitta & Bushido), Pesca (2 carte dal mazzo; 3 per Hideyoshi; opzione scarti per Ieyasu), Gioco (armi, proprietà, azioni), Scarto (fino al limite dei propri PV).
+  - **Nessuna Eliminazione:** Quando un giocatore va a 0 PV (Resistenza), cede 1 Punto Onore (🪷) a chi lo ha abbattuto, tiene le sue carte e diventa *Inoffensivo* fino al suo prossimo turno, quando recupera la vita al massimo. È Inoffensivo anche chi resta senza carte in mano.
+  - **4 Fasi di Turno:** Recupero (gestione sconfitta & Bushido), Pesca (2 carte dal mazzo; 3 per Hideyoshi; opzione scarti per Ieyasu), Gioco (armi, proprietà, azioni), Scarto (fino a un massimo di 7 carte in mano).
   - **Ruoli & Condizioni di Vittoria:**
     - **Shōgun (Giallo):** Palese a tutti, guida l'impero assieme al Samurai.
     - **Samurai (Giallo):** Alleato segreto dello Shōgun.
     - **Ninja (Blu):** Squadra segreta che collabora per abbattere lo Shōgun.
-    - **Ronin (Rosso):** Guerriero solitario il cui punteggio di fine partita viene moltiplicato (x2 o x3).
+    - **Ronin (Rosso):** Guerriero solitario il cui punteggio di fine partita viene moltiplicato (x2 con 5 giocatori, x3 con 6-7).
+  - **Distribuzione ufficiale:** 4 giocatori Shōgun, Samurai, 2 Ninja · 5 giocatori + Ronin · 6 giocatori 3 Ninja · 7 giocatori 2 Samurai. Variante a 3: Shōgun contro 2 Ninja.
+  - **Punteggio ufficiale:** moltiplicatori per ruolo e numero di giocatori, Daimyo, pareggi vinti dai Ninja, Colpo Mortale (−3) e Vittoria del Maestro di Spada.
   - **I 12 Personaggi del Gioco Base:** *Benkei, Chiyome, Ginchiyo, Goemon, Hanzō, Hideyoshi, Ieyasu, Kojirō, Musashi, Nobunaga, Tomoe, Ushiwaka* con tutte le rispettive abilità speciali implementate.
   - **Il Mazzo Completo da 90 Carte:**
     - 32 Carte Arma (*Bokken, Bo, Kiseru, Kusarigama, Katana, Shuriken, Kanabo, Nodachi, Naginata, Nagayari, Tanegashima, Daikyu, Wakizashi* con gittata e danni reali).
@@ -50,6 +52,17 @@ npm run build
 npm start
 ```
 Il server Express servirà sia il gioco che i WebSocket direttamente all'indirizzo [http://localhost:3001](http://localhost:3001).
+
+### 5. Test automatici
+```bash
+npm test         # regole, scenari di gioco, timer e 200 partite simulate tra bot
+npm run typecheck
+```
+
+### Note utili
+- **Rientro in partita:** se ricarichi la pagina o perdi la connessione rientri automaticamente al tuo posto. Dopo 30 secondi di assenza un bot gioca per te finché non torni.
+- **Timer:** ogni decisione ha un tempo massimo (2 minuti per il turno, 25 secondi per difendersi). Allo scadere decide l'IA, così la partita non si blocca.
+- **Immagini:** il gioco usa versioni WebP leggere in `client/public/assets`. Gli originali ad alta risoluzione stanno in `assets_originali/` (esclusa da git).
 
 ---
 

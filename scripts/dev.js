@@ -8,7 +8,16 @@ const vitePath = path.resolve('node_modules/vite/bin/vite.js');
 
 const server = spawn(process.execPath, [tsxPath, 'watch', 'server/src/index.ts']);
 server.stdout.on('data', (d) => process.stdout.write(`[SERVER] ${d}`));
-server.stderr.on('data', (d) => process.stderr.write(`[SERVER ERR] ${d}`));
+server.stderr.on('data', (d) => {
+  const text = String(d);
+  if (text.includes('EADDRINUSE')) {
+    console.error('\n⚠️  La porta 3001 è già occupata: probabilmente il gioco è già avviato in un\'altra finestra.');
+    console.error('   Chiudi l\'altra finestra del Terminale (o usa quella) e riprova.\n');
+    cleanup();
+    return;
+  }
+  process.stderr.write(`[SERVER ERR] ${d}`);
+});
 
 const client = spawn(process.execPath, [vitePath, 'client', '--port', '5173']);
 client.stdout.on('data', (d) => process.stdout.write(`[CLIENT] ${d}`));

@@ -113,7 +113,7 @@ export const OpeningCutscene: React.FC<OpeningCutsceneProps> = ({
               {/* Card Back */}
               <div className="absolute inset-0 backface-hidden rounded-2xl bg-gradient-to-br from-red-950 via-slate-900 to-black border-2 border-amber-600/60 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden">
                 <img
-                  src="/assets/ui/character_back.png"
+                  src="/assets/ui/character_back.webp"
                   alt="Dorso Personaggio"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -135,7 +135,7 @@ export const OpeningCutscene: React.FC<OpeningCutsceneProps> = ({
               {/* Card Front (Character) */}
               <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-2 border-amber-500 shadow-2xl overflow-hidden bg-slate-950 flex flex-col">
                 <img
-                  src={`/assets/characters/${character.id}.png`}
+                  src={`/assets/characters/${character.id}.webp`}
                   alt={character.name}
                   className="w-full h-full object-cover"
                 />
@@ -216,7 +216,7 @@ export const OpeningCutscene: React.FC<OpeningCutsceneProps> = ({
               {/* Role Card Back */}
               <div className="absolute inset-0 backface-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-black border-2 border-slate-700 shadow-2xl flex flex-col items-center justify-center p-4 text-center overflow-hidden">
                 <img
-                  src="/assets/ui/role_back.png"
+                  src="/assets/ui/role_back.webp"
                   alt="Dorso Ruolo"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -240,7 +240,7 @@ export const OpeningCutscene: React.FC<OpeningCutsceneProps> = ({
                 style={{ borderColor: role.color }}
               >
                 <img
-                  src={`/assets/roles/${role.id}.png`}
+                  src={`/assets/roles/${role.id}.webp`}
                   alt={role.name}
                   className="w-full h-full object-cover"
                 />

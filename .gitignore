@@ -26,3 +26,9 @@ pnpm-debug.log*
 *.sw?
 .DS_Store
 Thumbs.db
+
+# Immagini originali ad alta risoluzione (non servono al gioco, vedi client/public/assets in WebP)
+assets_originali/
+
+# File di servizio creati da macOS sui dischi esterni
+._*

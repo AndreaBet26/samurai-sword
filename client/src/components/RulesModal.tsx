@@ -96,7 +96,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   Distanza e Difficoltà
                 </h3>
                 <p className="leading-relaxed">
-                  La <strong>Distanza</strong> base è il numero di passi più breve attorno al tavolo (in senso orario o antiorario). I giocatori <em>Inoffensivi</em> (senza carte in mano) vengono saltati nel calcolo dei passi!
+                  La <strong>Distanza</strong> base è il numero di passi più breve attorno al tavolo (in senso orario o antiorario). I giocatori <em>Inoffensivi</em> (senza carte in mano oppure a 0 Resistenza) vengono saltati nel calcolo dei passi, non possono essere attaccati e non subiscono Grido di Battaglia e Jiujitsu!
                   <br />
                   La <strong>Difficoltà</strong> per colpire un bersaglio è data da: Distanza + Armature del bersaglio (+1 se il bersaglio è Benkei). Un'arma può colpire solo se la sua Gittata è pari o superiore alla Difficoltà calcolata.
                 </p>
@@ -108,22 +108,31 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
             <div className="space-y-3">
               <div className="p-3 bg-amber-950/30 border border-amber-600/70 rounded-xl">
                 <h4 className="font-bold text-sm text-amber-300">Shōgun (Palese fin da subito)</h4>
-                <p className="mt-1">È il capo supremo. Parte sempre per primo e inizia con 1 Punto Onore in più. La sua fazione (Shogun + Samurai) vince se totalizza più punti Onore a fine partita.</p>
+                <p className="mt-1">È il capo supremo. Parte sempre per primo con 5 Punti Onore (gli altri 3, o 4 con 6-7 giocatori) e 4 carte. La sua fazione (Shogun + Samurai) vince se totalizza più punti Onore a fine partita; batte il Ronin in caso di pareggio.</p>
               </div>
 
               <div className="p-3 bg-yellow-950/30 border border-yellow-600/70 rounded-xl">
                 <h4 className="font-bold text-sm text-yellow-300">Samurai (Segreto)</h4>
-                <p className="mt-1">Alleato fedele dello Shogun. Gioca per proteggerlo e accumulare onore per la corte imperiale. Vince assieme allo Shogun.</p>
+                <p className="mt-1">Alleato fedele dello Shogun. Gioca per proteggerlo e accumulare onore per la corte imperiale. Vince assieme allo Shogun. I suoi punti valgono doppio con 4 e con 6 giocatori.</p>
               </div>
 
               <div className="p-3 bg-blue-950/30 border border-blue-600/70 rounded-xl">
                 <h4 className="font-bold text-sm text-blue-300">Ninja (Segreto)</h4>
-                <p className="mt-1">Guerrieri dell'ombra. Cooperano segretamente per abbattere lo Shogun e i suoi alleati. A fine partita sommano i loro punti onore!</p>
+                <p className="mt-1">Guerrieri dell'ombra. Cooperano segretamente per abbattere lo Shogun e i suoi alleati. A fine partita sommano i loro punti onore e <strong>vincono ogni pareggio</strong>. Con 4 giocatori il Ninja con più stelle (★) raddoppia i suoi punti.</p>
               </div>
 
               <div className="p-3 bg-red-950/30 border border-red-600/70 rounded-xl">
                 <h4 className="font-bold text-sm text-red-300">Ronin (Segreto)</h4>
-                <p className="mt-1">Guerriero solitario senza padrone. Gioca da solo contro tutti! A fine partita i suoi punti Onore vengono moltiplicati per 2 (in 4-5 giocatori) o per 3 (in 6-7 giocatori).</p>
+                <p className="mt-1">Guerriero solitario senza padrone. Gioca da solo contro tutti! A fine partita i suoi punti Onore vengono moltiplicati per 2 (con 5 giocatori) o per 3 (con 6-7 giocatori). Non è presente con 3 o 4 giocatori e non ottiene punti dai Daimyo.</p>
+              </div>
+
+              <div className="p-3 bg-slate-950/60 border border-slate-700 rounded-xl space-y-1.5">
+                <h4 className="font-bold text-sm text-slate-200">Fine partita e punteggio</h4>
+                <p>La partita finisce appena un giocatore resta senza Punti Onore. Ogni volta che il mazzo si esaurisce, tutti perdono 1 Onore.</p>
+                <p><strong>Punteggio:</strong> Onore × moltiplicatore del ruolo, +1 per ogni Daimyo in mano (non moltiplicato, 0 per il Ronin).</p>
+                <p><strong>Colpo Mortale:</strong> se la partita finisce perché un giocatore abbatte un compagno di squadra, quella squadra perde 3 punti.</p>
+                <p><strong>Vittoria del Maestro di Spada:</strong> se resta un solo giocatore con Resistenza, la sua squadra vince subito.</p>
+                <p><strong>Variante a 3 giocatori:</strong> Shōgun contro 2 Ninja. Lo Shōgun parte con 6 Onore, pesca 3 carte, gioca 2 Armi per turno, raddoppia i punti e non perde mai Onore per il Bushido.</p>
               </div>
             </div>
           )}

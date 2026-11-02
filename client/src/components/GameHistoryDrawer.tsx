@@ -188,7 +188,7 @@ export const GameHistoryDrawer: React.FC<GameHistoryDrawerProps> = ({
                       title={`${cardTpl.name}: Clicca per visualizzare`}
                     >
                       <img
-                        src={`/assets/cards/${cardTpl.templateId}.png`}
+                        src={`/assets/cards/${cardTpl.templateId}.webp`}
                         alt={cardTpl.name}
                         className="w-full h-full object-cover object-center block"
                       />

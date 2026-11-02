@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   CardDef,
   CharacterDef,
+  GameEvent,
+  GameEventInput,
   GameLogEntry,
   GameState,
   PendingReaction,
@@ -13,22 +15,43 @@ import {
 } from '../../shared/types';
 import { ALL_CHARACTERS } from '../../shared/charactersData';
 import { CARD_TEMPLATES, buildDeck, shuffleArray } from '../../shared/cardsData';
-import { getInitialHonorPoints, getRoleDistribution, ROLES_DATA } from '../../shared/rolesData';
+import { buildRoleDeck, getInitialHonorPoints, ROLES_DATA } from '../../shared/rolesData';
 import {
   calculateAttackDamage,
   calculateDistance,
   calculateFinalScores,
   calculateTargetDifficulty,
-  canAttackWithWeapon
+  canAttackWithWeapon,
+  isPlayerHarmless
 } from '../../shared/rules';
 import { BotAI } from './botLogic';
 
+/** Tempo massimo per ogni decisione di un giocatore umano, poi decide l'IA al suo posto. */
+export const DECISION_TIME_MS = {
+  play: 120_000,
+  reaction: 25_000,
+  discard: 30_000,
+  draw: 30_000
+};
+
 export class GameEngine {
+  /** Disattivabile nei test automatici */
+  public static decisionTimersEnabled = true;
   public state: GameState;
   private playersPrivate: Map<string, PlayerPrivateState> = new Map();
   private deck: CardDef[] = [];
   private discardPile: CardDef[] = [];
   private onStateChangeCallback?: () => void;
+  /** Incrementato a ogni cambio di stato: serve a capire se un bot ha davvero fatto una mossa. */
+  private actionCounter = 0;
+  /** true quando la stanza è stata chiusa: ferma bot e timer ancora in coda. */
+  private disposed = false;
+  /** Timer della decisione corrente di un umano (turno, reazione, scarto...) */
+  private decisionTimer: ReturnType<typeof setTimeout> | null = null;
+  private decisionKey = '';
+  private decisionDeadline = 0;
+  /** Numero progressivo dei turni (distingue due turni consecutivi dello stesso giocatore) */
+  private turnSerial = 0;
 
   constructor(roomCode: string, onStateChange?: () => void) {
     this.onStateChangeCallback = onStateChange;
@@ -44,7 +67,8 @@ export class GameEngine {
       discardPileCount: 0,
       pendingReaction: null,
       lastPlayedCard: null,
-      logs: []
+      logs: [],
+      events: []
     };
   }
 
@@ -53,7 +77,10 @@ export class GameEngine {
   }
 
   private notifyStateChange() {
+    if (this.disposed) return;
+    this.actionCounter++;
     this.syncPublicState();
+    this.updateDecisionTimer();
     if (this.onStateChangeCallback) {
       this.onStateChangeCallback();
     }
@@ -70,6 +97,22 @@ export class GameEngine {
     // Keep last 100 logs
     if (this.state.logs.length > 100) {
       this.state.logs.shift();
+    }
+  }
+
+  private eventSeq = 0;
+
+  /** Registra un evento da animare sui client (si tengono gli ultimi 60). */
+  private emit(ev: GameEventInput) {
+    this.state.events.push({ ...(ev as any), id: ++this.eventSeq, at: Date.now() } as GameEvent);
+    if (this.state.events.length > 60) this.state.events.shift();
+  }
+
+  /** Mette una carta pescata nella mano del giocatore e lo segnala alle animazioni. */
+  private receive(player: PlayerPrivateState, card: CardDef) {
+    player.hand.push(card);
+    if (this.state.status === 'playing' && this.state.turnPhase !== 'dealing') {
+      this.emit({ kind: 'draw', playerId: player.id });
     }
   }
 
@@ -94,6 +137,55 @@ export class GameEngine {
     return this.playersPrivate.get(id);
   }
 
+  /** Regola ufficiale: Inoffensivo = 0 carte in mano oppure 0 Resistenza. */
+  private harmless(p: PlayerPrivateState): boolean {
+    return isPlayerHarmless(p.hand.length, p.currentHp);
+  }
+
+  /** Un giocatore è guidato dall'IA se è un bot oppure un umano disconnesso da troppo tempo. */
+  private isBotControlled(p: PlayerPrivateState): boolean {
+    return p.isBot || p.isAway;
+  }
+
+  /** Segnala che un giocatore umano ha perso (o ritrovato) la connessione. */
+  public setPlayerConnected(id: string, connected: boolean) {
+    const p = this.playersPrivate.get(id);
+    if (!p || p.isBot || p.isConnected === connected) return;
+    p.isConnected = connected;
+    if (connected) {
+      const wasAway = p.isAway;
+      p.isAway = false;
+      if (this.state.status === 'playing') {
+        this.addLog(
+          wasAway ? `${p.name} si è riconnesso e riprende il controllo dal bot.` : `${p.name} si è riconnesso.`,
+          'info'
+        );
+      }
+    } else if (this.state.status === 'playing') {
+      this.addLog(`${p.name} ha perso la connessione...`, 'info');
+    }
+    this.notifyStateChange();
+  }
+
+  /** Dopo il periodo di attesa, un bot gioca al posto del giocatore disconnesso. */
+  public setPlayerAway(id: string) {
+    const p = this.playersPrivate.get(id);
+    if (!p || p.isBot || p.isAway || this.state.status !== 'playing') return;
+    p.isAway = true;
+    this.addLog(`${p.name} non è rientrato: un bot gioca al suo posto finché non torna.`, 'info');
+    this.notifyStateChange();
+    this.checkBotAction();
+  }
+
+  /** Chiude definitivamente la partita: nessun timer o bot farà altre mosse. */
+  public dispose() {
+    this.disposed = true;
+    if (this.decisionTimer) clearTimeout(this.decisionTimer);
+    this.decisionTimer = null;
+    this.onStateChangeCallback = undefined;
+    if (this.state.status === 'playing') this.state.status = 'game_over';
+  }
+
   public addPlayer(id: string, name: string, isHost = false, isBot = false): boolean {
     if (this.state.status !== 'lobby') return false;
     if (this.playersPrivate.has(id)) return false;
@@ -111,6 +203,8 @@ export class GameEngine {
       honorPoints: 4,
       isHarmless: false,
       isDefeatedThisRound: false,
+      isConnected: true,
+      isAway: false,
       handCount: 0,
       propertiesInPlay: [],
       weaponsPlayedThisTurn: 0,
@@ -132,7 +226,9 @@ export class GameEngine {
         this.addLog(`${p.name} ha lasciato la stanza.`, 'info');
         // Reassign host if host left
         if (p.isHost && this.playersPrivate.size > 0) {
-          const first = Array.from(this.playersPrivate.values())[0];
+          // Il nuovo host deve essere un umano (un bot non può avviare la partita)
+          const remaining = Array.from(this.playersPrivate.values());
+          const first = remaining.find(x => !x.isBot) ?? remaining[0];
           first.isHost = true;
         }
         this.notifyStateChange();
@@ -149,9 +245,10 @@ export class GameEngine {
     this.deck = buildDeck();
     this.discardPile = [];
     this.state.logs = [];
+    this.state.events = [];
 
     // Assign roles
-    const roleIds = shuffleArray(getRoleDistribution(playerCount));
+    const roleDeck = buildRoleDeck(playerCount); // già mescolato, Ninja con le loro stelle
     const characters = shuffleArray([...ALL_CHARACTERS]);
 
     const playerList = Array.from(this.playersPrivate.values());
@@ -159,8 +256,8 @@ export class GameEngine {
 
     // Assign roles & characters
     playerList.forEach((player, idx) => {
-      const roleId = roleIds[idx];
-      const role = { ...ROLES_DATA[roleId] };
+      const role = roleDeck[idx];
+      const roleId = role.id;
       const character = characters[idx];
 
       player.role = role;
@@ -170,7 +267,7 @@ export class GameEngine {
       player.honorPoints = getInitialHonorPoints(playerCount, roleId);
       player.propertiesInPlay = [];
       player.weaponsPlayedThisTurn = 0;
-      player.maxWeaponsPerTurn = character.id === 'goemon' ? 2 : 1;
+      player.maxWeaponsPerTurn = 1; // ricalcolato all'inizio di ogni turno
       player.isDefeatedThisRound = false;
       player.hand = [];
 
@@ -198,7 +295,7 @@ export class GameEngine {
 
       for (let i = 0; i < cardsToDeal; i++) {
         const card = this.drawOneCard();
-        if (card) p.hand.push(card);
+        if (card) this.receive(p, card);
       }
       p.handCount = p.hand.length;
       p.isHarmless = p.hand.length === 0;
@@ -232,6 +329,8 @@ export class GameEngine {
     if (this.deck.length === 0) {
       if (this.discardPile.length === 0) return null;
       this.addLog('Il mazzo è esaurito: gli scarti vengono rimescolati. Tutti i giocatori perdono 1 Punto Onore!', 'damage');
+      this.emit({ kind: 'reshuffle' });
+      this.emit({ kind: 'honor_loss', playerIds: Array.from(this.playersPrivate.keys()), reason: 'reshuffle' });
       this.deck = shuffleArray(this.discardPile);
       this.discardPile = [];
 
@@ -248,6 +347,7 @@ export class GameEngine {
   }
 
   private startTurn(playerId: string) {
+    this.turnSerial++;
     this.state.turnPlayerId = playerId;
     this.state.turnPhase = 'recover';
     const player = this.playersPrivate.get(playerId);
@@ -257,6 +357,7 @@ export class GameEngine {
 
     // 1. Recover Phase
     if (player.isDefeatedThisRound) {
+      this.emit({ kind: 'heal', playerId: player.id, amount: player.maxHp - player.currentHp, reason: 'recover' });
       player.currentHp = player.maxHp;
       player.isDefeatedThisRound = false;
       this.addLog(`${player.name} si riprende e ripristina la propria Resistenza al massimo (${player.maxHp} PV)!`, 'heal');
@@ -264,8 +365,7 @@ export class GameEngine {
 
     // Reset turn counters
     player.weaponsPlayedThisTurn = 0;
-    const focusBonus = player.propertiesInPlay.filter(p => p.propertyType === 'focus').length;
-    player.maxWeaponsPerTurn = (player.character?.id === 'goemon' ? 2 : 1) + focusBonus;
+    player.maxWeaponsPerTurn = this.baseWeaponsPerTurn(player);
 
     // Check Bushido in front of player
     const bushidoIndex = player.propertiesInPlay.findIndex(p => p.propertyType === 'bushido');
@@ -282,43 +382,90 @@ export class GameEngine {
     }, 1600);
   }
 
+  /** Variante a 3 giocatori: lo Shōgun ha regole speciali. */
+  private isThreePlayerShogun(p: PlayerPrivateState): boolean {
+    return this.playersPrivate.size === 3 && p.role.id === 'shogun';
+  }
+
+  /** Armi giocabili per turno: 1 (+1 Goemon, +1 Shōgun nella variante a 3, +1 per ogni Concentrazione). */
+  private baseWeaponsPerTurn(p: PlayerPrivateState): number {
+    const focus = p.propertiesInPlay.filter(c => c.propertyType === 'focus').length;
+    return 1 + (p.character?.id === 'goemon' ? 1 : 0) + (this.isThreePlayerShogun(p) ? 1 : 0) + focus;
+  }
+
+  /** Carte da pescare nella Fase di Pesca: 2 (+1 Hideyoshi, +1 Shōgun nella variante a 3). */
+  private drawCountFor(p: PlayerPrivateState): number {
+    return 2 + (p.character?.id === 'hideyoshi' ? 1 : 0) + (this.isThreePlayerShogun(p) ? 1 : 0);
+  }
+
+  /** Carta Bushido in attesa della scelta del giocatore (scartare un'Arma o perdere 1 Onore). */
+  private pendingBushidoCard: CardDef | null = null;
+
   private handleBushidoCheck(player: PlayerPrivateState, bushidoIndex: number) {
     const revealedCard = this.drawOneCard();
+    if (this.state.status !== 'playing') return; // il rimescolamento del mazzo ha chiuso la partita
     if (!revealedCard) {
       this.proceedToDrawPhase(player);
       return;
     }
 
     this.discardPile.push(revealedCard);
-    this.addLog(`${player.name} scopre per il Bushido: ${revealedCard.name} (${revealedCard.type}).`, 'info');
+    this.emit({ kind: 'bushido_reveal', playerId: player.id, cardTemplateId: revealedCard.templateId, isWeapon: revealedCard.type === 'weapon' });
+    this.addLog(`${player.name} scopre per il Bushido: ${revealedCard.name}${revealedCard.type === 'weapon' ? ' (Arma!)' : ''}.`, 'info');
 
-    const bushidoCard = player.propertiesInPlay[bushidoIndex];
+    const bushidoCard = player.propertiesInPlay.splice(bushidoIndex, 1)[0];
 
-    if (revealedCard.type === 'weapon') {
-      // Must discard a weapon or lose 1 honor point
-      const weaponInHand = player.hand.find(c => c.type === 'weapon');
-      if (weaponInHand) {
-        // Discard the weapon, pass bushido to next player
-        this.removeCardFromHand(player, weaponInHand.id);
-        this.discardPile.push(weaponInHand);
-        player.propertiesInPlay.splice(bushidoIndex, 1);
-        this.passBushidoToLeft(player.id, bushidoCard);
-        this.addLog(`${player.name} scarta un'arma (${weaponInHand.name}) per onorare il Bushido e lo passa a sinistra.`, 'action');
-      } else {
-        // Lose 1 honor point! Bushido is discarded
-        player.propertiesInPlay.splice(bushidoIndex, 1);
-        this.discardPile.push(bushidoCard);
-        player.honorPoints -= 1;
-        this.addLog(`${player.name} non ha armi da scartare e perde 1 Punto Onore per il Bushido!`, 'damage');
-        if (this.checkGameOver()) return;
-      }
-    } else {
-      // Not a weapon: passes to left without penalty
-      player.propertiesInPlay.splice(bushidoIndex, 1);
+    if (revealedCard.type !== 'weapon') {
+      // Non è un'Arma: il Bushido passa al giocatore a sinistra senza penalità
       this.passBushidoToLeft(player.id, bushidoCard);
       this.addLog(`Il Bushido non è stato innescato e passa al giocatore a sinistra.`, 'info');
+      this.proceedToDrawPhase(player);
+      return;
     }
 
+    // Variante a 3 giocatori: lo Shōgun non perde mai Onore per il Bushido, lo scarta e basta
+    if (this.isThreePlayerShogun(player)) {
+      this.discardPile.push(bushidoCard);
+      this.addLog(`${player.name} (Shōgun, variante a 3) è immune al Bushido e lo scarta.`, 'info');
+      this.proceedToDrawPhase(player);
+      return;
+    }
+
+    const hasWeapon = player.hand.some(c => c.type === 'weapon');
+    if (!hasWeapon) {
+      this.resolveBushido(player, bushidoCard, null);
+      return;
+    }
+
+    // Il giocatore sceglie: scartare un'Arma (Bushido passa a sinistra) o perdere 1 Onore (Bushido scartato)
+    this.pendingBushidoCard = bushidoCard;
+    this.state.pendingReaction = {
+      type: 'bushido',
+      sourcePlayerId: player.id,
+      targetPlayerIds: [player.id],
+      pendingForPlayerId: player.id
+    };
+    this.state.turnPhase = 'response_wait';
+    this.addLog(`${player.name} deve scegliere: scartare un'Arma o perdere 1 Punto Onore.`, 'info');
+    this.notifyStateChange();
+    this.checkBotAction();
+  }
+
+  /** Applica la scelta del Bushido. weaponCardId = null significa perdere 1 Onore. */
+  private resolveBushido(player: PlayerPrivateState, bushidoCard: CardDef, weaponCardId: string | null) {
+    const weapon = weaponCardId ? player.hand.find(c => c.id === weaponCardId && c.type === 'weapon') : undefined;
+    if (weapon) {
+      this.removeCardFromHand(player, weapon.id);
+      this.discardPile.push(weapon);
+      this.passBushidoToLeft(player.id, bushidoCard);
+      this.addLog(`${player.name} scarta un'arma (${weapon.name}) per onorare il Bushido, che passa a sinistra.`, 'action');
+    } else {
+      this.discardPile.push(bushidoCard);
+      player.honorPoints -= 1;
+      this.emit({ kind: 'honor_loss', playerIds: [player.id], reason: 'bushido' });
+      this.addLog(`${player.name} perde 1 Punto Onore per il Bushido! Il Bushido viene scartato.`, 'damage');
+      if (this.checkGameOver()) return;
+    }
     this.proceedToDrawPhase(player);
   }
 
@@ -329,6 +476,7 @@ export class GameEngine {
     const leftPlayer = this.playersPrivate.get(leftPlayerId);
     if (leftPlayer) {
       leftPlayer.propertiesInPlay.push(bushidoCard);
+      this.emit({ kind: 'bushido_pass', fromId: fromPlayerId, toId: leftPlayer.id });
     }
   }
 
@@ -338,7 +486,7 @@ export class GameEngine {
     // If character is Ieyasu and discard pile has cards, ask if want to draw from discard
     // If bot, decide automatically
     if (player.character?.id === 'ieyasu' && this.discardPile.length > 0) {
-      if (player.isBot) {
+      if (this.isBotControlled(player)) {
         // Simple bot logic: draw from discard if top is weapon or daimyo
         const top = this.discardPile[this.discardPile.length - 1];
         if (top.type === 'weapon' || top.actionType === 'daimyo') {
@@ -362,15 +510,18 @@ export class GameEngine {
     if (fromDiscard && this.discardPile.length > 0) {
       const top = this.discardPile.pop()!;
       player.hand.push(top);
+      this.emit({ kind: 'draw', playerId: player.id, fromDiscard: true, cardTemplateId: top.templateId });
       this.addLog(`${player.name} (Ieyasu) pesca ${top.name} dagli scarti!`, 'action');
     } else {
       const c1 = this.drawOneCard();
-      if (c1) player.hand.push(c1);
+      if (c1) this.receive(player, c1);
     }
 
-    // Second card always from deck
-    const c2 = this.drawOneCard();
-    if (c2) player.hand.push(c2);
+    // Le altre carte arrivano sempre dal mazzo
+    for (let i = 1; i < this.drawCountFor(player); i++) {
+      const c = this.drawOneCard();
+      if (c) this.receive(player, c);
+    }
 
     this.notifyStateChange();
 
@@ -381,18 +532,15 @@ export class GameEngine {
   }
 
   private executeStandardDraw(player: PlayerPrivateState) {
-    // Hideyoshi draws 3, others draw 2
-    const drawCount = player.character?.id === 'hideyoshi' ? 3 : 2;
+    // 2 carte; +1 Hideyoshi; +1 Shōgun nella variante a 3 giocatori
+    const drawCount = this.drawCountFor(player);
     for (let i = 0; i < drawCount; i++) {
       const c = this.drawOneCard();
-      if (c) player.hand.push(c);
+      if (c) this.receive(player, c);
     }
 
-    if (player.character?.id === 'hideyoshi') {
-      this.addLog(`${player.name} (Hideyoshi) pesca 3 carte dal mazzo.`, 'info');
-    } else {
-      this.addLog(`${player.name} pesca 2 carte dal mazzo.`, 'info');
-    }
+    const who = player.character?.id === 'hideyoshi' ? `${player.name} (Hideyoshi)` : player.name;
+    this.addLog(`${who} pesca ${drawCount} carte dal mazzo.`, 'info');
 
     this.notifyStateChange();
 
@@ -427,6 +575,8 @@ export class GameEngine {
     const weaponCard = attacker.hand.find(c => c.id === weaponCardId);
     if (!weaponCard || weaponCard.type !== 'weapon') return false;
 
+    // Allinea lo stato pubblico (posti, carte, Resistenza) prima di calcolare distanze e Difficoltà
+    this.syncPublicState();
     const validation = canAttackWithWeapon(this.state.players, attacker, target, weaponCard);
     if (!validation.canAttack) {
       return false;
@@ -524,8 +674,10 @@ export class GameEngine {
     // Handle Bushido (Property card played on other players)
     if (card.propertyType === 'bushido') {
       if (!targetPlayerId || targetPlayerId === playerId) return false;
+      // Regola ufficiale: il Bushido si può giocare davanti a chiunque, anche a un Inoffensivo,
+      // ma può esserci un solo Bushido in gioco alla volta
       const target = this.playersPrivate.get(targetPlayerId);
-      if (!target || target.isHarmless) return false;
+      if (!target || this.isBushidoInPlay()) return false;
 
       this.removeCardFromHand(player, cardId);
       target.propertiesInPlay.push(card);
@@ -547,14 +699,14 @@ export class GameEngine {
         // Drawer draws 3 cards
         for (let i = 0; i < 3; i++) {
           const c = this.drawOneCard();
-          if (c) player.hand.push(c);
+          if (c) this.receive(player, c);
         }
         // Everyone else draws 1 card
         this.playersPrivate.forEach(p => {
           if (p.id !== playerId) {
             const c = this.drawOneCard();
             if (c) {
-              p.hand.push(c);
+              this.receive(p, c);
               this.addLog(`${p.name} pesca 1 carta per la Cerimonia del Tè.`, 'info');
             }
           }
@@ -574,7 +726,7 @@ export class GameEngine {
         });
         for (let i = 0; i < 2; i++) {
           const c = this.drawOneCard();
-          if (c) player.hand.push(c);
+          if (c) this.receive(player, c);
         }
         break;
       }
@@ -590,13 +742,14 @@ export class GameEngine {
         // Player heals to full
         const healed = player.maxHp - player.currentHp;
         player.currentHp = player.maxHp;
+        this.emit({ kind: 'heal', playerId: player.id, amount: healed, reason: 'breathing' });
         this.triggerCardPlayed(card, player, `${player.name} usa Respirazione e recupera tutte le ferite!`, otherPlayer);
         this.addLog(`${player.name} usa Respirazione e recupera tutte le ferite (${healed} PV recuperati)!`, 'heal');
 
         // Other player draws 1 card
         const cardDrawn = this.drawOneCard();
         if (cardDrawn) {
-          otherPlayer.hand.push(cardDrawn);
+          this.receive(otherPlayer, cardDrawn);
           this.addLog(`${otherPlayer.name} pesca 1 carta grazie alla Respirazione di ${player.name}.`, 'info');
         }
         break;
@@ -614,6 +767,7 @@ export class GameEngine {
         const randomIndex = Math.floor(Math.random() * target.hand.length);
         const stolenCard = target.hand.splice(randomIndex, 1)[0];
         player.hand.push(stolenCard);
+        this.emit({ kind: 'steal', fromId: target.id, toId: player.id });
 
         this.triggerCardPlayed(card, player, `${player.name} usa Diversione su ${target.name}!`, target);
         this.addLog(`${player.name} usa Diversione e ruba 1 carta segreta dalla mano di ${target.name}!`, 'action');
@@ -636,6 +790,7 @@ export class GameEngine {
           if (pIdx !== -1) {
             const discardedProp = target.propertiesInPlay.splice(pIdx, 1)[0];
             this.discardPile.push(discardedProp);
+            this.emit({ kind: 'property_removed', playerId: target.id, cardTemplateId: discardedProp.templateId });
             this.addLog(`${player.name} usa Geisha e fa scartare ${discardedProp.name} di ${target.name}!`, 'action');
           }
         } else if (target.hand.length > 0) {
@@ -643,6 +798,7 @@ export class GameEngine {
           const randomIndex = Math.floor(Math.random() * target.hand.length);
           const discardedHand = target.hand.splice(randomIndex, 1)[0];
           this.discardPile.push(discardedHand);
+          this.emit({ kind: 'discard_from_hand', playerId: target.id, cardTemplateId: discardedHand.templateId });
           this.addLog(`${player.name} usa Geisha e fa scartare una carta dalla mano di ${target.name}!`, 'action');
         }
         break;
@@ -658,7 +814,7 @@ export class GameEngine {
         const targets = this.state.turnOrder.filter(id => {
           if (id === playerId) return false;
           const p = this.playersPrivate.get(id);
-          if (!p || p.isHarmless || p.currentHp <= 0) return false;
+          if (!p || this.harmless(p)) return false;
           if (p.character?.id === 'chiyome') {
             this.addLog(`${p.name} (Chiyome) è immune al Grido di Battaglia!`, 'info');
             return false;
@@ -689,7 +845,7 @@ export class GameEngine {
         const targets = this.state.turnOrder.filter(id => {
           if (id === playerId) return false;
           const p = this.playersPrivate.get(id);
-          if (!p || p.isHarmless || p.currentHp <= 0) return false;
+          if (!p || this.harmless(p)) return false;
           if (p.character?.id === 'chiyome') {
             this.addLog(`${p.name} (Chiyome) è immune al Jiujitsu!`, 'info');
             return false;
@@ -750,6 +906,7 @@ export class GameEngine {
             `${player.name} para l'attacco con ${card!.name}! Nessun danno subito.`,
             'action'
           );
+          this.emit({ kind: 'parry', playerId: player.id, sourceId: sourcePlayer.id, cardTemplateId: card!.templateId, against: 'weapon' });
           this.state.pendingReaction = null;
           this.state.turnPhase = 'play';
           this.notifyStateChange();
@@ -770,19 +927,42 @@ export class GameEngine {
       }
     }
 
+    if (reaction.type === 'bushido') {
+      const bushidoCard = this.pendingBushidoCard;
+      if (responseCardId) {
+        const card = player.hand.find(c => c.id === responseCardId);
+        if (card?.type !== 'weapon') return false; // per il Bushido serve un'Arma
+      }
+      this.state.pendingReaction = null;
+      this.pendingBushidoCard = null;
+      if (bushidoCard) {
+        this.resolveBushido(player, bushidoCard, responseCardId);
+      } else {
+        this.proceedToDrawPhase(player);
+      }
+      return true;
+    }
+
     if (reaction.type === 'battle_cry') {
       if (responseCardId) {
         const card = player.hand.find(c => c.id === responseCardId);
-        // Per Grido di Battaglia la regola ufficiale richiede esclusivamente lo scarto di una carta Parata
+        // Serve una Parata; Hanzō può usare un'Arma come Parata (se non è la sua unica carta)
         const isParry = card?.actionType === 'parry';
+        const isHanzoWeapon = player.character?.id === 'hanzo' && card?.type === 'weapon' && player.hand.length > 1;
 
-        if (isParry) {
+        if (isParry || isHanzoWeapon) {
           this.removeCardFromHand(player, responseCardId);
           this.discardPile.push(card!);
           this.triggerCardPlayed(card!, player, `${player.name} scarta ${card!.name} contro il Grido di Battaglia!`, sourcePlayer);
-          this.addLog(`${player.name} scarta una Parata per evitare il danno del Grido di Battaglia.`, 'action');
+          this.emit({ kind: 'parry', playerId: player.id, sourceId: sourcePlayer.id, cardTemplateId: card!.templateId, against: 'battle_cry' });
+          this.addLog(
+            isParry
+              ? `${player.name} scarta una Parata per evitare il danno del Grido di Battaglia.`
+              : `${player.name} (Hanzō) usa ${card!.name} come Parata contro il Grido di Battaglia.`,
+            'action'
+          );
         } else {
-          return false; // Carta non valida: non si possono scartare armi contro il Grido di Battaglia!
+          return false; // Carta non valida contro il Grido di Battaglia
         }
       } else {
         this.inflictDamage(sourcePlayer, player, 1, false);
@@ -800,6 +980,7 @@ export class GameEngine {
           this.discardPile.push(card);
           this.triggerCardPlayed(card, player, `${player.name} scarta ${card.name} per il Jiujitsu!`, sourcePlayer);
           this.addLog(`${player.name} scarta l'arma ${card.name} per evitare il Jiujitsu.`, 'action');
+          this.emit({ kind: 'parry', playerId: player.id, sourceId: sourcePlayer.id, cardTemplateId: card.templateId, against: 'jujutsu' });
         } else {
           return false; // Carta non valida: per Jiujitsu serve una carta Arma
         }
@@ -840,6 +1021,7 @@ export class GameEngine {
     isWeaponDamage: boolean
   ) {
     target.currentHp = Math.max(0, target.currentHp - wounds);
+    this.emit({ kind: 'damage', targetId: target.id, sourceId: attacker.id, amount: wounds, weapon: isWeaponDamage, hpLeft: target.currentHp });
     this.addLog(`${target.name} subisce ${wounds} ferite! (Resistenza rimasta: ${target.currentHp}/${target.maxHp})`, 'damage');
 
     // Attacker character triggers:
@@ -847,7 +1029,7 @@ export class GameEngine {
     if (isWeaponDamage && wounds > 0 && attacker.character?.id === 'tomoe') {
       const bonusCard = this.drawOneCard();
       if (bonusCard) {
-        attacker.hand.push(bonusCard);
+        this.receive(attacker, bonusCard);
         this.addLog(`${attacker.name} (Tomoe) pesca 1 carta per aver ferito un avversario!`, 'info');
       }
     }
@@ -857,7 +1039,7 @@ export class GameEngine {
     if (isWeaponDamage && target.character?.id === 'ushiwaka') {
       for (let i = 0; i < wounds; i++) {
         const c = this.drawOneCard();
-        if (c) target.hand.push(c);
+        if (c) this.receive(target, c);
       }
       this.addLog(`${target.name} (Ushiwaka) pesca ${wounds} carte per le ferite subite!`, 'info');
     }
@@ -870,24 +1052,51 @@ export class GameEngine {
 
   private handlePlayerDefeated(attacker: PlayerPrivateState, target: PlayerPrivateState) {
     this.addLog(`⚔️ ${target.name} è stato abbattuto da ${attacker.name}!`, 'defeat');
+    this.emit({ kind: 'defeat', targetId: target.id, attackerId: attacker.id });
+    this.emit({ kind: 'honor_transfer', fromId: target.id, toId: attacker.id });
 
-    // Transfer 1 Honor point
+    // Il giocatore abbattuto cede 1 Punto Onore a chi l'ha abbattuto
     target.honorPoints = Math.max(0, target.honorPoints - 1);
     attacker.honorPoints += 1;
     this.addLog(`${attacker.name} conquista 1 Punto Onore da ${target.name}!`, 'defeat');
-
-    // Check Game Over: if any player has 0 honor points left
-    if (this.checkGameOver()) {
-      return;
-    }
 
     // Target becomes defeated/harmless until their next turn
     target.isDefeatedThisRound = true;
     target.isHarmless = true;
 
+    // Fine partita per Onore esaurito. Colpo Mortale: se a chiudere la partita è l'abbattimento
+    // di un compagno di squadra, quella squadra perde 3 punti.
+    if (target.honorPoints <= 0) {
+      const teammate = attacker.id !== target.id && attacker.role.team === target.role.team;
+      if (teammate) {
+        this.addLog(`💀 Colpo Mortale! ${attacker.name} ha abbattuto un compagno di squadra: la sua squadra perde 3 punti.`, 'end');
+        this.triggerGameOver({ deadlyStrikeTeam: attacker.role.team });
+      } else {
+        this.triggerGameOver();
+      }
+      return;
+    }
+    if (this.checkGameOver()) return;
+
+    // Vittoria del Maestro di Spada: se un solo giocatore ha ancora Resistenza, la sua squadra vince subito
+    // (non vale nella variante a 3 giocatori)
+    if (this.playersPrivate.size > 3) {
+      const standing = Array.from(this.playersPrivate.values()).filter(p => p.currentHp > 0);
+      if (standing.length === 1) {
+        const master = standing[0];
+        this.addLog(`🗡️ ${master.name} è l'unico guerriero ancora in piedi: Vittoria del Maestro di Spada!`, 'end');
+        this.triggerGameOver({ swordmasterTeam: master.role.team, swordmasterName: master.name });
+        return;
+      }
+    }
+
     // REGOLA UFFICIALE SAMURAI SWORD: Il giocatore abbattuto NON scarta la mano né le proprietà!
     // Rimane semplicemente Inoffensivo fino al suo prossimo turno, quando recupererà tutta la Resistenza al massimo.
     this.addLog(`${target.name} è Inoffensivo fino al suo prossimo turno (recupererà tutti i punti ferita e mantiene le sue carte).`, 'info');
+  }
+
+  private isBushidoInPlay(): boolean {
+    return Array.from(this.playersPrivate.values()).some(p => p.propertiesInPlay.some(c => c.propertyType === 'bushido'));
   }
 
   public useNobunagaAbility(playerId: string): boolean {
@@ -899,8 +1108,9 @@ export class GameEngine {
     if (player.currentHp <= 1) return false; // cannot sacrifice last HP
 
     player.currentHp -= 1;
+    this.emit({ kind: 'damage', targetId: player.id, sourceId: player.id, amount: 1, weapon: false, hpLeft: player.currentHp });
     const card = this.drawOneCard();
-    if (card) player.hand.push(card);
+    if (card) this.receive(player, card);
 
     this.addLog(`${player.name} (Nobunaga) sacrifica 1 punto Resistenza per pescare una carta!`, 'action');
     this.notifyStateChange();
@@ -981,24 +1191,59 @@ export class GameEngine {
     return false;
   }
 
-  private triggerGameOver() {
+  private triggerGameOver(
+    opts: { deadlyStrikeTeam?: 'shogun' | 'ninja' | 'ronin'; swordmasterTeam?: 'shogun' | 'ninja' | 'ronin'; swordmasterName?: string } = {}
+  ) {
+    if (this.state.status === 'game_over') return;
     this.state.status = 'game_over';
-    this.addLog('🏆 La riserva dei Punti Onore si è esaurita! La partita è terminata!', 'end');
+    this.state.pendingReaction = null;
+    this.pendingBushidoCard = null;
 
     // Reveal all roles
     this.playersPrivate.forEach(p => {
       p.role = { ...p.role, isRevealed: true };
     });
 
-    const scores = calculateFinalScores(Array.from(this.playersPrivate.values()));
-    this.state.winnerTeam = scores.winnerTeam;
-    this.state.finalScores = scores;
+    const scores = calculateFinalScores(Array.from(this.playersPrivate.values()), {
+      deadlyStrikeTeam: opts.deadlyStrikeTeam,
+      swordmasterTeam: opts.swordmasterTeam
+    });
 
     const teamNames = {
       shogun: 'Squadra Shōgun & Samurai',
       ninja: 'Squadra Ninja',
       ronin: 'Il Ronin',
       draw: 'Pareggio'
+    };
+
+    let summary: string;
+    if (opts.swordmasterTeam) {
+      summary = `${opts.swordmasterName ?? 'Un guerriero'} è rimasto l'unico in piedi: Vittoria del Maestro di Spada per ${teamNames[opts.swordmasterTeam]}.`;
+    } else {
+      const zero = Array.from(this.playersPrivate.values()).filter(p => p.honorPoints <= 0).map(p => p.name);
+      summary = `${zero.join(', ') || 'Un giocatore'} ha esaurito i Punti Onore.`;
+      if (opts.deadlyStrikeTeam) summary += ` Colpo Mortale: ${teamNames[opts.deadlyStrikeTeam]} perde 3 punti.`;
+      const present = new Set(Array.from(this.playersPrivate.values()).map(p => p.role.team));
+      const totals = [
+        present.has('shogun') ? scores.shogunSamurai : null,
+        present.has('ninja') ? scores.ninja : null,
+        present.has('ronin') ? scores.ronin : null
+      ].filter((t): t is number => t !== null);
+      const best = Math.max(...totals);
+      if (totals.filter(t => t === best).length > 1) {
+        summary += ' Pareggio risolto dalle regole: i Ninja vincono ogni pareggio, Shōgun & Samurai battono il Ronin.';
+      }
+    }
+
+    this.addLog(`🏆 Partita terminata! ${summary}`, 'end');
+
+    this.state.winnerTeam = scores.winnerTeam;
+    this.emit({ kind: 'game_over', winnerTeam: scores.winnerTeam, endReason: opts.swordmasterTeam ? 'swordmaster' : 'honor' });
+    this.state.finalScores = {
+      ...scores,
+      endReason: opts.swordmasterTeam ? 'swordmaster' : 'honor',
+      deadlyStrikeTeam: opts.deadlyStrikeTeam,
+      summary
     };
 
     this.addLog(`Vittoria per: ${teamNames[scores.winnerTeam]}!`, 'end');
@@ -1008,38 +1253,84 @@ export class GameEngine {
   // --- BOT EXECUTION ---
 
   private checkBotAction() {
-    if (this.state.status !== 'playing' || this.state.turnPhase === 'dealing') return;
+    if (this.disposed || this.state.status !== 'playing' || this.state.turnPhase === 'dealing') return;
 
-    // Check reaction pending
+    // 1. Reazione in sospeso (Parata / Grido di Battaglia / Jiujitsu)
     if (this.state.pendingReaction) {
-      const targetId = this.state.pendingReaction.pendingForPlayerId;
+      const reactionRef = this.state.pendingReaction;
+      const targetId = reactionRef.pendingForPlayerId;
       const target = this.playersPrivate.get(targetId);
-      if (target?.isBot) {
-        // Give 2.4s so everyone sees the attack card before bot reacts
+      if (target && this.isBotControlled(target)) {
+        // 2.4s così tutti vedono la carta d'attacco prima della risposta del bot
         setTimeout(() => {
-          if (this.state.status !== 'playing' || !this.state.pendingReaction) return;
-          BotAI.respondToReaction(this, targetId);
+          if (this.state.status !== 'playing') return;
+          if (this.state.pendingReaction !== reactionRef || reactionRef.pendingForPlayerId !== targetId) return;
+          if (!this.isBotControlled(target)) return;
+          const before = this.actionCounter;
+          try {
+            BotAI.respondToReaction(this, targetId);
+          } catch (err) {
+            console.error('[BotAI] errore durante la reazione:', err);
+          }
+          // Paracadute: se il bot non è riuscito a rispondere, incassa il colpo invece di bloccare la partita
+          if (
+            this.actionCounter === before &&
+            this.state.pendingReaction === reactionRef &&
+            reactionRef.pendingForPlayerId === targetId
+          ) {
+            this.submitReaction(targetId, null);
+          }
         }, 2400);
       }
       return;
     }
 
-    // Check turn player
+    // 2. Turno del giocatore attivo
     const curr = this.playersPrivate.get(this.state.turnPlayerId);
-    if (!curr || !curr.isBot) return;
+    if (!curr || !this.isBotControlled(curr)) return;
+    const phase = this.state.turnPhase;
+    const stillMyMove = () =>
+      this.state.status === 'playing' &&
+      this.state.turnPlayerId === curr.id &&
+      this.state.turnPhase === phase &&
+      !this.state.pendingReaction &&
+      this.isBotControlled(curr);
 
-    if (this.state.turnPhase === 'play') {
-      // Human-like pause while bot assesses the situation and plays: 2.2s
+    if (phase === 'play') {
+      // Pausa "umana" mentre il bot valuta la situazione: 2.2s
       setTimeout(() => {
-        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id || this.state.turnPhase !== 'play') return;
-        BotAI.playTurn(this, curr.id);
+        if (!stillMyMove()) return;
+        const before = this.actionCounter;
+        try {
+          BotAI.playTurn(this, curr.id);
+        } catch (err) {
+          console.error('[BotAI] errore durante il turno:', err);
+        }
+        // Paracadute: se nessuna mossa è stata accettata dal motore, il bot chiude il turno
+        if (this.actionCounter === before && stillMyMove()) {
+          this.endPlayPhase(curr.id);
+        }
       }, 2200);
-    } else if (this.state.turnPhase === 'discard') {
-      // Pause before bot discards excess: 1.6s
+    } else if (phase === 'discard') {
       setTimeout(() => {
-        if (this.state.status !== 'playing' || this.state.turnPlayerId !== curr.id || this.state.turnPhase !== 'discard') return;
-        BotAI.discardDown(this, curr.id);
+        if (!stillMyMove()) return;
+        try {
+          BotAI.discardDown(this, curr.id);
+        } catch (err) {
+          console.error('[BotAI] errore durante lo scarto:', err);
+        }
+        if (stillMyMove()) {
+          const excess = curr.hand.length - 7;
+          if (excess > 0) this.discardExcessCards(curr.id, curr.hand.slice(0, excess).map(c => c.id));
+          else this.finishTurn(curr.id);
+        }
       }, 1600);
+    } else if (phase === 'draw' && curr.character?.id === 'ieyasu') {
+      // Ieyasu umano andato offline mentre doveva scegliere da dove pescare
+      setTimeout(() => {
+        if (!stillMyMove()) return;
+        this.drawForIeyasu(curr.id, false);
+      }, 1200);
     }
   }
 
@@ -1053,7 +1344,20 @@ export class GameEngine {
   }
 
   private syncPublicState() {
-    this.state.players = Array.from(this.playersPrivate.values()).map(p => ({
+    // IMPORTANTE: l'array dei giocatori segue l'ordine dei posti al tavolo (turnOrder),
+    // perché distanze e Difficoltà vengono calcolate sulla posizione nell'array.
+    const all = Array.from(this.playersPrivate.values());
+    const seated =
+      this.state.turnOrder.length === all.length
+        ? this.state.turnOrder.map(id => this.playersPrivate.get(id)).filter((p): p is PlayerPrivateState => !!p)
+        : all;
+
+    seated.forEach(p => {
+      p.handCount = p.hand.length;
+      p.isHarmless = this.harmless(p);
+    });
+
+    this.state.players = seated.map(p => ({
       id: p.id,
       name: p.name,
       isHost: p.isHost,
@@ -1064,8 +1368,10 @@ export class GameEngine {
       currentHp: p.currentHp,
       maxHp: p.maxHp,
       honorPoints: p.honorPoints,
-      isHarmless: p.hand.length === 0,
+      isHarmless: p.isHarmless,
       isDefeatedThisRound: p.isDefeatedThisRound,
+      isConnected: p.isConnected,
+      isAway: p.isAway,
       handCount: p.hand.length,
       propertiesInPlay: p.propertiesInPlay,
       weaponsPlayedThisTurn: p.weaponsPlayedThisTurn,
@@ -1082,9 +1388,78 @@ export class GameEngine {
    */
   public getStateForPlayer(playerId: string): GameState & { myPrivateState?: PlayerPrivateState } {
     const privateState = this.playersPrivate.get(playerId);
+    const hasDecision = !!this.decisionTimer && this.decisionDeadline > 0;
     return {
       ...this.state,
+      decisionPlayerId: hasDecision ? this.decisionKey.split('|')[0] : null,
+      decisionMsLeft: hasDecision ? Math.max(0, this.decisionDeadline - Date.now()) : null,
       myPrivateState: privateState
     };
+  }
+
+  // --- TIMER DELLE DECISIONI (evita partite bloccate da chi si allontana) ---
+
+  /** Chi deve decidere adesso e che tipo di decisione è. */
+  private currentDecision(): { playerId: string; kind: keyof typeof DECISION_TIME_MS } | null {
+    if (this.state.status !== 'playing') return null;
+    if (this.state.pendingReaction) {
+      return { playerId: this.state.pendingReaction.pendingForPlayerId, kind: 'reaction' };
+    }
+    const phase = this.state.turnPhase;
+    const id = this.state.turnPlayerId;
+    if (phase === 'play') return { playerId: id, kind: 'play' };
+    if (phase === 'discard') return { playerId: id, kind: 'discard' };
+    if (phase === 'draw' && this.playersPrivate.get(id)?.character?.id === 'ieyasu') return { playerId: id, kind: 'draw' };
+    return null;
+  }
+
+  private updateDecisionTimer() {
+    const d = this.currentDecision();
+    const player = d ? this.playersPrivate.get(d.playerId) : undefined;
+    const needsTimer = GameEngine.decisionTimersEnabled && !!d && !!player && !this.isBotControlled(player);
+    const r = this.state.pendingReaction;
+    const key = needsTimer
+      ? `${d!.playerId}|${d!.kind}|${this.turnSerial}|${r ? `${r.type}:${r.sourcePlayerId}:${r.weaponCard?.id ?? ''}:${r.targetPlayerIds.length}` : ''}`
+      : '';
+
+    if (key === this.decisionKey) return; // stessa decisione: il timer continua
+    if (this.decisionTimer) clearTimeout(this.decisionTimer);
+    this.decisionTimer = null;
+    this.decisionKey = key;
+    this.decisionDeadline = 0;
+    if (!needsTimer) return;
+
+    const ms = DECISION_TIME_MS[d!.kind];
+    this.decisionDeadline = Date.now() + ms;
+    this.decisionTimer = setTimeout(() => {
+      this.decisionTimer = null;
+      if (this.disposed || this.decisionKey !== key || this.state.status !== 'playing') return;
+      this.onDecisionTimeout(d!.playerId, d!.kind);
+    }, ms);
+  }
+
+  /** Tempo scaduto: l'IA prende la decisione al posto del giocatore (solo per questa volta). */
+  private onDecisionTimeout(playerId: string, kind: keyof typeof DECISION_TIME_MS) {
+    const p = this.playersPrivate.get(playerId);
+    if (!p) return;
+    this.decisionKey = '';
+    this.addLog(`⏳ Tempo scaduto per ${p.name}: si procede automaticamente.`, 'info');
+    const before = this.actionCounter;
+    try {
+      if (kind === 'reaction') BotAI.respondToReaction(this, playerId);
+      else if (kind === 'play') {
+        this.endPlayPhase(playerId);
+        // Se deve scartare oltre le 7 carte, scarta subito l'IA invece di far partire un altro timer
+        if (this.state.turnPhase === 'discard' && this.state.turnPlayerId === playerId) BotAI.discardDown(this, playerId);
+      } else if (kind === 'discard') BotAI.discardDown(this, playerId);
+      else if (kind === 'draw') this.drawForIeyasu(playerId, false);
+    } catch (err) {
+      console.error('[GameEngine] errore nella decisione automatica:', err);
+    }
+    // Paracadute finale
+    if (this.actionCounter === before && this.state.status === 'playing') {
+      if (kind === 'reaction' && this.state.pendingReaction?.pendingForPlayerId === playerId) this.submitReaction(playerId, null);
+      else if (kind === 'play' && this.state.turnPhase === 'play') this.finishTurn(playerId);
+    }
   }
 }

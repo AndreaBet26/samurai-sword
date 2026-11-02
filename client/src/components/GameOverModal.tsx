@@ -46,9 +46,12 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <h2 className="font-title text-3xl font-black text-slate-100 tracking-wide mb-1">
           Partita Conclusa!
         </h2>
-        <div className={`font-title text-xl font-bold ${winningInfo.color} mb-6`}>
+        <div className={`font-title text-xl font-bold ${winningInfo.color} ${scores?.summary ? 'mb-2' : 'mb-6'}`}>
           {winningInfo.name}
         </div>
+        {scores?.summary && (
+          <p className="text-xs text-slate-400 mb-6 max-w-lg">{scores.summary}</p>
+        )}
 
         {/* Team Totals Summary */}
         {scores && (
@@ -56,12 +59,14 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <div className="bg-amber-950/40 border border-amber-700/60 p-3 rounded-2xl">
               <span className="text-xs uppercase font-bold text-amber-300 block mb-1">Shōgun & Samurai</span>
               <span className="text-2xl font-black text-amber-400">{scores.shogunSamurai}</span>
+              {scores.deadlyStrikeTeam === 'shogun' && <span className="text-[10px] text-red-400 block">Colpo Mortale −3</span>}
               <span className="text-[10px] text-slate-400 block">Punti Totali</span>
             </div>
 
             <div className="bg-blue-950/40 border border-blue-700/60 p-3 rounded-2xl">
               <span className="text-xs uppercase font-bold text-blue-300 block mb-1">Squadra Ninja</span>
               <span className="text-2xl font-black text-blue-400">{scores.ninja}</span>
+              {scores.deadlyStrikeTeam === 'ninja' && <span className="text-[10px] text-red-400 block">Colpo Mortale −3</span>}
               <span className="text-[10px] text-slate-400 block">Punti Totali</span>
             </div>
 
@@ -101,6 +106,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                           }}
                         >
                           {p.role.name}
+                          {p.role.stars ? ` ${'★'.repeat(p.role.stars)}` : ''}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-purple-300">

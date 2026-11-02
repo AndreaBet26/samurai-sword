@@ -1,79 +1,68 @@
 import React from 'react';
 import { CardDef } from '../../../shared/types';
 import { TabletopCard } from './TabletopCard';
-import { Shield } from 'lucide-react';
+
+/**
+ * LA TUA ZONA DI GIOCO
+ * Le carte che hai giocato davanti a te (Proprietà, Bushido): piccole, distanziate e appoggiate
+ * sul tappeto, ben separate dalla mano. Senza riquadri: l'elemento resta sempre presente (anche vuoto)
+ * perché è il punto d'arrivo delle animazioni e la zona dove trascinare le carte.
+ */
 
 interface PlayerFieldProps {
   properties: CardDef[];
   onInspectCard?: (card: CardDef) => void;
+  /** Evidenzia la zona mentre trascini una carta da giocare */
+  isDropActive?: boolean;
 }
 
-export const PlayerField: React.FC<PlayerFieldProps> = ({
-  properties,
-  onInspectCard
-}) => {
-  if (properties.length === 0) return null;
+function tilt(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return ((Math.abs(h) % 100) / 100 - 0.5) * 8;
+}
 
-  // Group properties by templateId / name so identical types stack cleanly
+export const PlayerField: React.FC<PlayerFieldProps> = ({ properties, onInspectCard, isDropActive = false }) => {
   const groups: Record<string, CardDef[]> = {};
   properties.forEach(card => {
-    const key = card.templateId || card.name;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(card);
+    (groups[card.templateId || card.name] ??= []).push(card);
   });
 
   return (
     <div
       id="table-player-field"
-      className="flex items-center justify-center gap-4 px-4 py-1 select-none pointer-events-auto"
+      className={`flex items-center justify-center gap-6 select-none pointer-events-auto transition-all duration-300 ${
+        isDropActive ? 'field-drop-active' : ''
+      }`}
+      style={{ minHeight: 104, minWidth: 220 }}
     >
-      <div className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-wider text-blue-400 bg-black/80 px-2.5 py-0.5 rounded-full border border-blue-600/50 shadow">
-        <Shield className="w-3.5 h-3.5 text-blue-400" />
-        <span>Terreno</span>
-      </div>
-
-      <div className="flex items-center gap-4">
-        {Object.entries(groups).map(([groupKey, cards]) => {
-          const firstCard = cards[0];
-          const count = cards.length;
-
-          return (
-            <div
-              key={groupKey}
-              onClick={() => onInspectCard?.(firstCard)}
-              className="relative flex flex-col items-center group cursor-pointer hover:scale-105 transition-transform"
-              title={`${firstCard.name} (${count}): Clicca per ingrandire`}
-            >
-              {/* Stacked Cards Container: directly on top of each other with 3D physical deck depth */}
-              <div className="relative">
-                {count > 1 && (
-                  <>
-                    <div className="absolute inset-0 bg-slate-900 border border-slate-700/80 rounded-md shadow-md pointer-events-none translate-x-1 translate-y-1 z-0" />
-                    {count > 2 && (
-                      <div className="absolute inset-0 bg-slate-900 border border-slate-700/80 rounded-md shadow pointer-events-none translate-x-2 translate-y-2 -z-10" />
-                    )}
-                    <span className="absolute -top-2.5 -right-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs px-2 py-0.5 rounded-full border-2 border-amber-200 shadow-xl z-30">
-                      x{count}
-                    </span>
-                  </>
-                )}
-
-                <div className="relative z-10">
-                  <TabletopCard
-                    imageSrc={`/assets/cards/${firstCard.templateId}.png`}
-                    fallbackText={firstCard.name}
-                    size="sm"
-                  />
-                </div>
-              </div>
-
-              <span className="text-[11px] font-bold text-blue-300 mt-1 drop-shadow max-w-[90px] truncate text-center">
-                {firstCard.name}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      {properties.length === 0 && isDropActive && (
+        <span className="text-amber-200/80 text-xs font-bold seat-label">Rilascia qui per giocare la carta</span>
+      )}
+      {Object.entries(groups).map(([groupKey, cards]) => {
+        const firstCard = cards[0];
+        const count = cards.length;
+        return (
+          <div
+            key={groupKey}
+            onClick={() => onInspectCard?.(firstCard)}
+            className="relative cursor-pointer hover:scale-110 transition-transform animate-fadeIn"
+            style={{ rotate: `${tilt(firstCard.id)}deg` }}
+            title={`${firstCard.name}${count > 1 ? ` ×${count}` : ''}: clicca per ingrandire`}
+          >
+            {count > 1 &&
+              Array.from({ length: Math.min(count - 1, 2) }).map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 rounded-[6px] bg-slate-900 border border-slate-700/80 shadow"
+                  style={{ transform: `translate(${(i + 1) * 4}px, ${(i + 1) * 3}px)`, zIndex: -1 - i }}
+                />
+              ))}
+            <TabletopCard imageSrc={`/assets/cards/${firstCard.templateId}.webp`} fallbackText={firstCard.name} size="sm" />
+            {count > 1 && <span className="absolute -bottom-2 -right-2 text-amber-300 font-black text-sm seat-label">×{count}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 };

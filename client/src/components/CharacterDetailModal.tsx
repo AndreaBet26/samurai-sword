@@ -29,7 +29,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({ char
         {/* Character Card Portrait */}
         <div className="shrink-0 transform hover:scale-105 transition-transform duration-200">
           <TabletopCard
-            imageSrc={`/assets/characters/${character.id}.png`}
+            imageSrc={`/assets/characters/${character.id}.webp`}
             fallbackText={character.name}
             size="zoom"
             isHoverable={false}
