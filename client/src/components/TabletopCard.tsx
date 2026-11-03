@@ -53,7 +53,7 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
           ? '0 0 0 3px #ef4444, 0 0 22px rgba(239,68,68,0.8), 0 6px 14px rgba(0,0,0,0.9)'
           : '0 5px 14px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.6)'
       }}
-      className={`relative select-none shrink-0 overflow-hidden cursor-pointer transition-all duration-200 ${
+      className={`tabletop-card relative select-none shrink-0 overflow-hidden cursor-pointer ${
         isHoverable ? 'hover:-translate-y-2 hover:shadow-2xl hover:scale-105' : ''
       } ${
         isSelected ? '-translate-y-3 scale-105 z-10' : ''

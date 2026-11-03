@@ -3,6 +3,7 @@ import { CharacterDef, CharacterId } from './types';
 export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   benkei: {
     id: 'benkei',
+    shortAbility: "+1 alla Difficoltà per colpirlo",
     name: 'Benkei',
     title: 'Il Monaco Guerriero',
     maxHp: 5,
@@ -11,6 +12,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   chiyome: {
     id: 'chiyome',
+    shortAbility: "ferita solo dalle armi",
     name: 'Chiyome',
     title: 'Maestra Kunoichi',
     maxHp: 4,
@@ -19,6 +21,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   ginchiyo: {
     id: 'ginchiyo',
+    shortAbility: "−1 danno dalle armi (min. 1)",
     name: 'Ginchiyo',
     title: 'Capoclan Coraggiosa',
     maxHp: 4,
@@ -27,6 +30,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   goemon: {
     id: 'goemon',
+    shortAbility: "una seconda arma per turno",
     name: 'Goemon',
     title: 'Ladro Leggendario',
     maxHp: 5,
@@ -35,6 +39,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   hanzo: {
     id: 'hanzo',
+    shortAbility: "può parare con un'arma",
     name: 'Hanzō',
     title: 'Maestro dell’Ombra',
     maxHp: 4,
@@ -43,6 +48,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   hideyoshi: {
     id: 'hideyoshi',
+    shortAbility: "pesca una carta in più",
     name: 'Hideyoshi',
     title: 'Il Grande Unificatore',
     maxHp: 4,
@@ -51,6 +57,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   ieyasu: {
     id: 'ieyasu',
+    shortAbility: "può pescare dagli scarti",
     name: 'Ieyasu',
     title: 'Fondatore dello Shogunato',
     maxHp: 5,
@@ -59,6 +66,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   kojiro: {
     id: 'kojiro',
+    shortAbility: "le sue armi colpiscono ovunque",
     name: 'Kojirō',
     title: 'Spadaccino Implacabile',
     maxHp: 5,
@@ -67,6 +75,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   musashi: {
     id: 'musashi',
+    shortAbility: "+1 danno con le armi",
     name: 'Musashi',
     title: 'Il Maestro Invitto',
     maxHp: 5,
@@ -75,6 +84,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   nobunaga: {
     id: 'nobunaga',
+    shortAbility: "1 Vita per pescare una carta",
     name: 'Nobunaga',
     title: 'Il Re Demone',
     maxHp: 5,
@@ -83,6 +93,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   tomoe: {
     id: 'tomoe',
+    shortAbility: "pesca quando ferisce con un'arma",
     name: 'Tomoe',
     title: 'Guerriera Senza Pari',
     maxHp: 5,
@@ -91,6 +102,7 @@ export const CHARACTERS_DATA: Record<CharacterId, CharacterDef> = {
   },
   ushiwaka: {
     id: 'ushiwaka',
+    shortAbility: "pesca per ogni ferita da arma",
     name: 'Ushiwaka',
     title: 'Il Giovane Prodigio',
     maxHp: 4,

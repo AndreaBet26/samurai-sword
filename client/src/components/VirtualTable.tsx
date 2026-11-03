@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { socket } from '../socket';
 import { CardDef, GameState, PlayerPrivateState, PlayerPublicState, CharacterDef } from '../../../shared/types';
-import { calculateDistance, calculateTargetDifficulty, canAttackWithWeapon } from '../../../shared/rules';
+import { calculateAttackDamage, calculateDistance, calculateTargetDifficulty, canAttackWithWeapon } from '../../../shared/rules';
 import { soundManager } from '../utils/soundEffects';
 import { OpponentTableArea } from './OpponentTableArea';
 import { HandTray } from './HandTray';
@@ -15,6 +15,8 @@ import { RulesModal } from './RulesModal';
 import { GameHistoryDrawer } from './GameHistoryDrawer';
 import { EffectsLayer } from './EffectsLayer';
 import { TokenPile } from './TokenPile';
+import { HiddenCardPicker } from './HiddenCardPicker';
+import { STAGE_W, STAGE_H, TABLE_CENTER, computeSeats, setTableScale, setAnimRate, getAnimRate, type SeatGeometry } from '../utils/tableLayout';
 import {
   Sword,
   BookOpen,
@@ -49,11 +51,17 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const [showRules, setShowRules] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isMuted, setIsMuted] = useState(soundManager.isMuted);
+  // Diversione / Geisha in attesa della scelta della carta
+  const [handPick, setHandPick] = useState<{ card: CardDef; targetId: string } | null>(null);
+  const pickTarget = handPick ? gameState.players.find(p => p.id === handPick.targetId) ?? null : null;
+
   // Trascinamento di una carta dalla mano verso il tavolo
   const [draggingCard, setDraggingCard] = useState<CardDef | null>(null);
   const [dragHoverPlayerId, setDragHoverPlayerId] = useState<string | null>(null);
   // Breve suggerimento mostrato al centro del tavolo (es. "Non è il tuo turno")
   const [tableHint, setTableHint] = useState<string | null>(null);
+  // Spiegazione mostrata passando sopra una carta che ora non puoi giocare
+  const [hoverHint, setHoverHint] = useState<string | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cima degli scarti mostrata: se la carta è appena stata giocata, compare negli scarti solo quando
@@ -65,7 +73,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     if (discardTimerRef.current) clearTimeout(discardTimerRef.current);
     const justPlayed = top && gameState.lastPlayedCard?.card.id === top.id && top.type !== 'property';
     if (justPlayed) {
-      discardTimerRef.current = setTimeout(() => setShownDiscardTop(top), 2200);
+      discardTimerRef.current = setTimeout(() => setShownDiscardTop(top), 2200 / getAnimRate());
     } else {
       setShownDiscardTop(top);
     }
@@ -123,6 +131,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       const player = gameState.players.find(p => p.id === gameState.turnPlayerId);
       // Il banner compare solo quando tocca a te (il turno degli altri è già indicato in alto e dall'alone)
       if (player && player.id === myId) {
+        soundManager.play('yourTurn');
         setTurnBanner({
           playerName: player.name,
           isMyTurn: player.id === myId,
@@ -254,29 +263,30 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   }
 
   // Distribute opponents around table: West (Left), North (Top), East (Right)
-  const distributeOpponents = (opponents: PlayerPublicState[]) => {
-    const n = opponents.length;
-    if (n === 0) return { left: [], top: [], right: [] };
-    if (n === 1) return { left: [], top: opponents, right: [] };
-    if (n === 2) return { left: [opponents[0]], top: [], right: [opponents[1]] };
-    if (n === 3) return { left: [opponents[0]], top: [opponents[1]], right: [opponents[2]] };
-    if (n === 4) return { left: [opponents[0]], top: [opponents[1], opponents[2]], right: [opponents[3]] };
-    if (n === 5) return { left: [opponents[0]], top: [opponents[1], opponents[2], opponents[3]], right: [opponents[4]] };
-    return {
-      left: [opponents[0], opponents[1]],
-      top: [opponents[2], opponents[3]],
-      right: [opponents[4], opponents[5]]
-    };
-  };
+  // Posti attorno al tavolo rotondo, nell'ordine di turno (il prossimo giocatore è alla tua sinistra)
+  const seats = computeSeats(opponentsOrdered.length);
 
-  const { left: leftOpponents, top: topOpponents, right: rightOpponents } = distributeOpponents(opponentsOrdered);
+  // Scala della scena: il tavolo 1920×1080 viene adattato allo schermo
+  const computeScale = () => Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H);
+  const [stageScale, setStageScale] = useState(() => computeScale());
+  useEffect(() => {
+    const onResize = () => setStageScale(computeScale());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+  setTableScale(stageScale);
+  setAnimRate(gameState.settings?.animSpeed === 'fast' ? 1.7 : 1);
 
   // Attack / Damage sound effects & Slash animation
   useEffect(() => {
     if (gameState.logs.length > 0) {
       const lastLog = gameState.logs[gameState.logs.length - 1];
       if (lastLog.type === 'attack') {
-        soundManager.playSwordSlash(); // il taglio visivo lo disegna EffectsLayer sul bersaglio
+        soundManager.play('swordDraw'); // il colpo (o la parata) suona quando arriva sul bersaglio
       }
       // I suoni di danni, abbattimenti e Onore li gestisce EffectsLayer, sincronizzati con le animazioni
     }
@@ -356,30 +366,31 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       ) {
         setActivePlayCard(card);
       } else {
-        soundManager.playTaiko();
+        soundManager.play('cardPlace');
         socket.emit('play_action', { cardId: card.id });
       }
     }
   };
 
+  /** Gioca una carta con bersaglio. Diversione e Geisha aprono prima la scelta della carta. */
+  const playOnTarget = (card: CardDef, targetPlayerId: string) => {
+    if (card.actionType === 'diversion' || card.actionType === 'geisha') {
+      setHandPick({ card, targetId: targetPlayerId });
+      setActivePlayCard(null);
+      return;
+    }
+    if (card.type === 'weapon') {
+      socket.emit('attack_with_weapon', { weaponCardId: card.id, targetId: targetPlayerId });
+    } else {
+      soundManager.play('cardPlace');
+      socket.emit('play_action', { cardId: card.id, targetPlayerId });
+    }
+    setActivePlayCard(null);
+  };
+
   const handleDirectTargetClick = (targetPlayerId: string) => {
     if (!activePlayCard) return;
-
-    if (activePlayCard.type === 'weapon') {
-      soundManager.playSwordSlash();
-      socket.emit('attack_with_weapon', {
-        weaponCardId: activePlayCard.id,
-        targetId: targetPlayerId
-      });
-    } else {
-      soundManager.playCardSlide();
-      socket.emit('play_action', {
-        cardId: activePlayCard.id,
-        targetPlayerId
-      });
-    }
-
-    setActivePlayCard(null);
+    playOnTarget(activePlayCard, targetPlayerId);
   };
 
   const handleEndPlayPhase = () => {
@@ -390,8 +401,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   };
 
   const handleReaction = (cardId: string | null) => {
-    if (cardId) soundManager.playParryClash();
-    else soundManager.playTaiko();
+    // Il suono della parata o della ferita arriva con l'animazione sul tavolo
     socket.emit('submit_reaction', { responseCardId: cardId });
   };
 
@@ -404,7 +414,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   // Nobunaga: arm the deck draw so player clicks the deck to draw!
   const handleNobunagaAbilityClick = () => {
     if (myPrivateState?.currentHp && myPrivateState.currentHp <= 1) return;
-    soundManager.playTaiko();
+    soundManager.play('cardPlace');
     setPendingDeckDraw({ type: 'nobunaga', count: 1 });
   };
 
@@ -461,6 +471,55 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     return false;
   };
 
+  /**
+   * Nel tuo turno: perché una carta della mano adesso non si può giocare (null = giocabile).
+   * Le carte bloccate si abbassano un po' nella mano; il motivo compare al centro del tavolo al passaggio.
+   */
+  const blockedReasons: Record<string, string> = {};
+  if (isPlayPhase && myPrivateState && myPlayer && !activePlayCard) {
+    const others = gameState.players.filter(p => p.id !== myId);
+    const weaponsLeft = (myPlayer.weaponsPlayedThisTurn ?? 0) < (myPlayer.maxWeaponsPerTurn ?? 1);
+    for (const card of myPrivateState.hand) {
+      let reason: string | null = null;
+      if (card.actionType === 'parry') reason = 'La Parata si usa solo quando vieni attaccato';
+      else if (card.type === 'weapon') {
+        if (!weaponsLeft) reason = 'Hai già usato tutte le armi di questo turno';
+        else if (!others.some(o => isTargetValidFor(card, o))) reason = `${card.name}: nessun avversario a portata (gittata ${card.difficulty})`;
+      } else if (card.actionType === 'diversion' && !others.some(o => o.handCount > 0)) reason = 'Nessun avversario ha carte in mano';
+      else if (card.actionType === 'geisha' && !others.some(o => o.handCount > 0 || o.propertiesInPlay.length > 0))
+        reason = 'Nessun avversario ha carte da scartare';
+      else if (card.propertyType === 'bushido' && gameState.players.some(p => p.propertiesInPlay.some(c => c.propertyType === 'bushido')))
+        reason = "C'è già un Bushido in gioco";
+      if (reason) blockedReasons[card.id] = reason;
+    }
+  }
+
+  /** Carta con cui stai mirando (scelta o trascinata): per mostrare il calcolo accanto al nome degli avversari */
+  const aimingCard = isPlayPhase ? activePlayCard ?? draggingCard : null;
+  const targetInfoFor = (target: PlayerPublicState): { ok: boolean; text: string } | undefined => {
+    if (!aimingCard || !myPlayer) return undefined;
+    if (aimingCard.type !== 'weapon') {
+      if (!cardNeedsTarget(aimingCard)) return undefined;
+      return isTargetValidFor(aimingCard, target) ? { ok: true, text: 'bersaglio valido' } : { ok: false, text: target.handCount === 0 ? 'nessuna carta' : 'non valido' };
+    }
+    if (target.currentHp <= 0) return { ok: false, text: 'abbattuto: non si può colpire' };
+    if (target.isHarmless) return { ok: false, text: 'senza carte: non si può colpire' };
+    const dist = calculateDistance(gameState.players, myPlayer.id, target.id);
+    const armor = target.propertiesInPlay.filter(c => c.propertyType === 'armor').length;
+    const benkei = target.character?.id === 'benkei' ? 1 : 0;
+    const diff = dist + armor + benkei;
+    const reach = aimingCard.difficulty ?? 1;
+    const kojiro = myPlayer.character?.id === 'kojiro';
+    if (kojiro || reach >= diff) {
+      const dmg = calculateAttackDamage(myPlayer, target, aimingCard);
+      return { ok: true, text: `colpito: −${dmg} ❤` };
+    }
+    const parts = [`distanza ${dist}`];
+    if (armor) parts.push(`armatura ${armor}`);
+    if (benkei) parts.push('Benkei 1');
+    return { ok: false, text: `${parts.join(' + ')}${parts.length > 1 ? ` = ${diff}` : ''} › gittata ${reach}` };
+  };
+
   const cardNeedsTarget = (card: CardDef) =>
     card.type === 'weapon' ||
     card.propertyType === 'bushido' ||
@@ -495,14 +554,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     if (cardNeedsTarget(card)) {
       const target = targetPlayerId ? gameState.players.find(p => p.id === targetPlayerId) : undefined;
       if (target && isTargetValidFor(card, target)) {
-        if (card.type === 'weapon') {
-          soundManager.playSwordSlash();
-          socket.emit('attack_with_weapon', { weaponCardId: card.id, targetId: target.id });
-        } else {
-          soundManager.playCardSlide();
-          socket.emit('play_action', { cardId: card.id, targetPlayerId: target.id });
-        }
-        setActivePlayCard(null);
+        playOnTarget(card, target.id);
         return;
       }
       // Lasciata sul tavolo ma non su un bersaglio valido: si passa alla scelta del bersaglio
@@ -515,13 +567,13 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       soundManager.playCardSlide();
       socket.emit('play_property', { cardId: card.id });
     } else {
-      soundManager.playTaiko();
+      soundManager.play('cardPlace');
       socket.emit('play_action', { cardId: card.id });
     }
   };
 
   /** Posto di un avversario (stessa logica per alto, sinistra e destra) */
-  const renderOpponent = (opponent: PlayerPublicState, side: 'top' | 'left' | 'right') => {
+  const renderOpponent = (opponent: PlayerPublicState, seat: SeatGeometry) => {
     const dist = myPlayer ? calculateDistance(gameState.players, myPlayer.id, opponent.id) : 0;
     const diff = myPlayer ? calculateTargetDifficulty(gameState.players, myPlayer, opponent) : 0;
     const liveHandCount = hasInitialDealt ? opponent.handCount : opponentDealtCounts[opponent.id] ?? 0;
@@ -535,12 +587,13 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       <OpponentTableArea
         key={opponent.id}
         player={shown}
-        side={side}
+        seat={seat}
         isCurrentTurn={gameState.turnPlayerId === opponent.id}
         isDeciding={gameState.pendingReaction?.pendingForPlayerId === opponent.id}
         distanceFromMe={dist}
         difficultyFromMe={diff}
         isTargetable={isTargetValid(opponent)}
+        targetInfo={targetInfoFor(opponent)}
         onTargetSelect={() => handleDirectTargetClick(opponent.id)}
         onInspectCard={card => setPreviewCard(card)}
         onInspectCharacter={char => setInspectCharacter(char)}
@@ -619,16 +672,29 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   return (
     <div
       id="table-root"
-      className="h-screen w-screen overflow-hidden select-none relative flex flex-col justify-between"
+      className="fixed inset-0 overflow-hidden select-none"
       style={{
         backgroundImage: 'linear-gradient(to bottom, rgba(5, 10, 20, 0.62), rgba(8, 14, 25, 0.75)), url(/assets/ui/table_background.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        border: '10px solid #1c1109' // Wooden table border
+        border: '10px solid #1c1109' // bordo di legno del tavolo
       }}
     >
+      {/* SCENA: il tavolo è disegnato a 1920×1080 e ridimensionato per riempire lo schermo */}
+      <div
+        id="table-stage"
+        className="absolute"
+        style={{
+          width: STAGE_W,
+          height: STAGE_H,
+          left: '50%',
+          top: '50%',
+          transform: `translate(-50%, -50%) scale(${stageScale})`,
+          transformOrigin: 'center center'
+        }}
+      >
       {/* Top Header Row */}
-      <div className="flex items-center justify-between z-20 text-xs px-6 pt-2 shrink-0">
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between z-40 text-xs px-6 pt-3">
         <div className="flex items-center gap-3">
           <span className="font-title font-black text-amber-400 text-sm tracking-wider drop-shadow">
             SAMURAI SWORD
@@ -636,9 +702,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           <span className="text-slate-400 font-mono text-[11px] drop-shadow">
             Stanza: {gameState.roomCode}
           </span>
-        </div>
-
-        {/* Turn Status Indicator */}
+          {/* Di chi è il turno (a sinistra, così non copre il giocatore di fronte) */}
         <div className="flex items-center gap-2 transition-all seat-label">
           <span className={`w-2.5 h-2.5 rounded-full ${gameState.turnPhase === 'dealing' ? 'bg-amber-400 animate-pulse' : 'bg-amber-400 animate-ping'}`} />
           <span className="text-slate-200 text-xs font-semibold">
@@ -653,6 +717,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
               </>
             )}
           </span>
+        </div>
         </div>
 
         {/* Audio Toggle, Cronologia & Rules */}
@@ -684,110 +749,105 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            defaultValue={Math.round(soundManager.volume * 100)}
+            onChange={e => soundManager.setVolume(Number(e.target.value) / 100)}
+            onMouseUp={() => soundManager.play('uiClick')}
+            className="w-20 accent-amber-500 cursor-pointer"
+            title="Volume"
+          />
         </div>
       </div>
 
-      {/* ===================== TAVOLO ===================== */}
-      <div className="flex-1 flex flex-col justify-between w-full min-h-0 relative px-6 sm:px-10">
-        {/* NORD: avversari in alto (zona di gioco sotto di loro, verso il centro) */}
-        <div className="flex items-start justify-center gap-14 sm:gap-20 pt-1 shrink-0 min-h-[160px]">
-          {topOpponents.map(opponent => renderOpponent(opponent, 'top'))}
+      {/* ===================== TAVOLO ROTONDO ===================== */}
+      {opponentsOrdered.map((opponent, i) => renderOpponent(opponent, seats[i]))}
+
+      {/* Centro del tavolo: riserva gettoni, mazzo, scarti */}
+      <div
+        className="absolute flex flex-col items-center"
+        style={{ left: TABLE_CENTER.x, top: TABLE_CENTER.y, transform: 'translate(-50%, -50%)' }}
+      >
+        <div className="flex items-center gap-8 sm:gap-12">
+          {/* Riserva comune dei gettoni Vita: qui finiscono le ferite e da qui tornano le cure */}
+          <div className="flex flex-col items-center justify-center" style={{ minWidth: 90 }} title="Riserva dei gettoni Vita">
+            <TokenPile
+              id="table-token-reserve"
+              kind="hp"
+              ledgerKey="reserve"
+              count={tokenReserveCount}
+              seed="reserve"
+              size={22}
+              perRow={4}
+              title={`Riserva: ${tokenReserveCount} gettoni Vita`}
+            />
+          </div>
+
+          {/* Mazzo */}
+          <div
+            id="table-deck-pile"
+            onClick={handleDeckClick}
+            className={`relative transition-transform duration-300 cursor-pointer ${isDeckReadyToDraw ? 'scale-105 seat-turn' : 'hover:scale-105'}`}
+            title={`Mazzo: ${gameState.deckCount} carte`}
+          >
+            <TabletopCard imageSrc="/assets/ui/card_back.webp" fallbackText="Mazzo" size="md" />
+            <span className={`absolute bottom-1 right-1.5 font-black text-sm seat-label ${gameState.deckCount <= 8 ? 'text-red-300 animate-pulse' : 'text-amber-200'}`}>
+              {gameState.deckCount}
+            </span>
+            {gameState.status === 'playing' && gameState.deckCount <= 8 && (
+              <span
+                className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-red-300 seat-label"
+                title="Quando il mazzo finisce, gli scarti vengono rimescolati e tutti perdono 1 Punto Onore"
+              >
+                ⚠️ Mazzo quasi finito: −1 Onore a tutti
+              </span>
+            )}
+          </div>
+
+          {/* Punto d'arrivo delle carte giocate (invisibile: la carta si mostra e poi va negli scarti) */}
+          <div id="table-play-zone" className="w-28 h-40" />
+
+          {/* Scarti */}
+          <div
+            id="table-discard-pile"
+            onClick={handleDiscardPileClick}
+            className={`relative transition-transform duration-300 cursor-pointer ${isIeyasuDrawPhase ? 'scale-105 seat-turn' : 'hover:scale-105'}`}
+          >
+            {isIeyasuDrawPhase && (
+              <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-amber-300 font-black text-xs whitespace-nowrap seat-label z-30">
+                Pesca dagli scarti
+              </div>
+            )}
+            {shownDiscardTop ? (
+              <div className="rotate-2 hover:rotate-0 transition-transform duration-300" title="Pila degli scarti (clicca per vedere la carta)">
+                <TabletopCard imageSrc={`/assets/cards/${shownDiscardTop.templateId}.webp`} fallbackText={shownDiscardTop.name} size="md" />
+              </div>
+            ) : (
+              <div style={{ width: '104px', height: '148px' }} className="flex items-center justify-center text-slate-500/70 text-xs font-bold seat-label">
+                Scarti
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* CENTRO: avversari ai lati, mazzo / riserva / scarti in mezzo */}
-        <div className="flex items-center justify-between w-full flex-1 px-2 my-auto">
-          <div className="shrink-0 flex flex-col items-start justify-center gap-6">
-            {leftOpponents.map(opponent => renderOpponent(opponent, 'left'))}
-          </div>
-
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="flex items-center gap-8 sm:gap-12">
-              {/* Riserva comune dei gettoni Vita: qui finiscono le ferite e da qui tornano le cure */}
-              <div className="flex flex-col items-center justify-center" style={{ minWidth: 90 }} title="Riserva dei gettoni Vita">
-                <TokenPile
-                  id="table-token-reserve"
-                  kind="hp"
-                  ledgerKey="reserve"
-                  count={tokenReserveCount}
-                  seed="reserve"
-                  size={22}
-                  perRow={4}
-                  title={`Riserva: ${tokenReserveCount} gettoni Vita`}
-                />
-              </div>
-
-              {/* Mazzo */}
-              <div
-                id="table-deck-pile"
-                onClick={handleDeckClick}
-                className={`relative transition-all duration-200 cursor-pointer ${
-                  isDeckReadyToDraw ? 'scale-108 seat-turn animate-pulse' : 'hover:scale-105'
-                }`}
-                title={`Mazzo: ${gameState.deckCount} carte`}
-              >
-                <TabletopCard imageSrc="/assets/ui/card_back.webp" fallbackText="Mazzo" size="md" />
-                <span
-                  className={`absolute bottom-1 right-1.5 font-black text-sm seat-label ${
-                    gameState.deckCount <= 8 ? 'text-red-300 animate-pulse' : 'text-amber-200'
-                  }`}
-                >
-                  {gameState.deckCount}
-                </span>
-                {gameState.status === 'playing' && gameState.deckCount <= 8 && (
-                  <span
-                    className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-red-300 seat-label"
-                    title="Quando il mazzo finisce, gli scarti vengono rimescolati e tutti perdono 1 Punto Onore"
-                  >
-                    ⚠️ Mazzo quasi finito: −1 Onore a tutti
-                  </span>
-                )}
-              </div>
-
-              {/* Punto d'arrivo delle carte giocate (invisibile: la carta si mostra e poi va negli scarti) */}
-              <div id="table-play-zone" className="w-24 sm:w-28 h-36 sm:h-40" />
-
-              {/* Scarti */}
-              <div
-                id="table-discard-pile"
-                onClick={handleDiscardPileClick}
-                className={`relative transition-all duration-200 cursor-pointer ${
-                  isIeyasuDrawPhase ? 'scale-108 seat-turn animate-pulse' : 'hover:scale-105'
-                }`}
-              >
-                {isIeyasuDrawPhase && (
-                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-amber-300 font-black text-xs whitespace-nowrap seat-label animate-bounce z-30">
-                    Pesca dagli scarti
-                  </div>
-                )}
-                {shownDiscardTop ? (
-                  <div className="rotate-2 hover:rotate-0 transition-transform" title="Pila degli scarti (clicca per vedere la carta)">
-                    <TabletopCard imageSrc={`/assets/cards/${shownDiscardTop.templateId}.webp`} fallbackText={shownDiscardTop.name} size="md" />
-                  </div>
-                ) : (
-                  <div style={{ width: '104px', height: '148px' }} className="flex items-center justify-center text-slate-500/70 text-xs font-bold seat-label">
-                    Scarti
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Un'unica riga con l'ultima azione importante (il resto è nella Cronologia) */}
-            <div className="mt-4 h-5 text-sm text-slate-200 text-center max-w-xl pointer-events-none seat-label truncate">
-              {tableHint ? <span className="text-amber-300 font-bold">{tableHint}</span> : lastActionLog?.text}
-            </div>
-          </div>
-
-          <div className="shrink-0 flex flex-col items-end justify-center gap-6">
-            {rightOpponents.map(opponent => renderOpponent(opponent, 'right'))}
-          </div>
+        {/* Un'unica riga con l'ultima azione importante (il resto è nella Cronologia) */}
+        <div className="mt-5 h-5 text-sm text-slate-200 text-center w-[640px] pointer-events-none seat-label truncate">
+          {tableHint ? (
+            <span className="text-amber-300 font-bold">{tableHint}</span>
+          ) : hoverHint ? (
+            <span className="text-slate-300 italic">{hoverHint}</span>
+          ) : (
+            lastActionLog?.text
+          )}
         </div>
-      </div>
 
-      {/* ===================== IL TUO POSTO ===================== */}
-      <div className="w-full px-6 sm:px-10 pb-3 shrink-0 flex flex-col items-center select-none relative z-30">
+        {/* Richieste per te (difesa, bersaglio, scarto): al centro del tavolo, dove guardi */}
+        <div className="mt-3 flex flex-col items-center">
         {/* Difesa: scegli una carta o subisci */}
         {isUnderAttack && reaction && (
-          <div className="mb-2 flex items-center justify-center gap-3 animate-fadeIn">
+          <div className="flex items-center justify-center gap-3 animate-fadeIn">
             <span className="text-sm font-bold text-red-200 flex items-center gap-1.5 seat-label">
               <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
               {reaction.type === 'bushido' ? (
@@ -813,7 +873,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
 
         {/* Scelta del bersaglio in corso */}
         {activePlayCard && !isUnderAttack && (
-          <div className="mb-2 flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-3">
             <span className="text-xs font-bold text-amber-200 seat-label">Scegli il bersaglio per {activePlayCard.name}</span>
             <button
               onClick={() => setActivePlayCard(null)}
@@ -827,7 +887,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
 
         {/* Scarto oltre le 7 carte */}
         {isDiscardPhase && excessDiscardCount > 0 && !isUnderAttack && (
-          <div className="mb-2 flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-3">
             <span className="text-xs font-bold text-amber-200 seat-label">Scegli {excessDiscardCount} carte da scartare (massimo 7 in mano)</span>
             <button
               onClick={handleDiscardConfirm}
@@ -844,99 +904,119 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           </div>
         )}
 
-        {/* LA TUA ZONA DI GIOCO: sul tappeto, staccata dalla mano */}
+        </div>
+      </div>
+
+      {/* ===================== IL TUO POSTO ===================== */}
+      <div className="absolute bottom-0 left-0 right-0 px-8 pb-3 flex flex-col items-center select-none z-30">
+        {/* LE TUE CARTE GIOCATE: più avanti, verso il centro del tavolo */}
         {myPrivateState && (
-          <div className="w-full flex justify-center mb-3">
+          <div className="w-full flex justify-center mb-2">
             <PlayerField
               properties={myPrivateState.propertiesInPlay}
               onInspectCard={card => setPreviewCard(card)}
-              isDropActive={Boolean(draggingCard) && !dragHoverPlayerId}
+              isDropActive={Boolean(draggingCard) && isPlayPhase && !dragHoverPlayerId && !cardNeedsTarget(draggingCard!) && draggingCard!.actionType !== 'parry'}
             />
           </div>
         )}
 
-        {/* Riga in basso: zona giocatore (sinistra) | mano (centro) | comandi (destra) */}
-        <div className="flex items-end justify-between w-full gap-4">
-          {myPrivateState && (
+        {/* IL TUO PERSONAGGIO: come gli avversari, ruolo sotto e gettoni ai lati */}
+        {myPrivateState && (
+          <div className="flex justify-center mb-1">
+           <div className="relative">
+            {/* Nome e abilità, a sinistra delle carte */}
+            <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-right whitespace-nowrap seat-label pointer-events-none">
+              <div className={`font-title font-bold text-sm transition-colors duration-500 ${isMyTurn ? 'text-amber-300 seat-name-turn' : 'text-slate-100'}`}>
+                {myPrivateState.name}
+              </div>
+              {myPrivateState.character && (
+                <div className="text-[11px] text-slate-300/80 italic mt-0.5">
+                  {myPrivateState.character.name} · {myPrivateState.character.shortAbility}
+                </div>
+              )}
+            </div>
+
             <div
               id="table-player-mat"
-              className={`flex items-end gap-3 shrink-0 rounded-2xl ${myPrivateState.currentHp <= 0 ? 'opponent-defeated' : isMyTurn ? 'seat-turn' : ''}`}
+              className={`flex items-center gap-2 ${myPrivateState.currentHp <= 0 ? 'opponent-defeated' : isMyTurn ? 'seat-turn' : ''}`}
             >
-              <div className="flex flex-col items-center gap-1">
-                <span className={`text-xs font-bold seat-label ${isMyTurn ? 'text-amber-300 seat-name-turn' : 'text-slate-100'}`}>
-                  {myPrivateState.name}
-                </span>
-                <div className="flex items-center gap-2">
-                  <div
-                    onClick={() => myPrivateState.character && setInspectCharacter(myPrivateState.character)}
-                    className="cursor-pointer"
-                    title="Clicca per vedere l'abilità del personaggio"
-                  >
-                    <TabletopCard
-                      imageSrc={`/assets/characters/${myPrivateState.character?.id}.webp`}
-                      fallbackText={myPrivateState.character?.name || 'Personaggio'}
-                      size="player"
-                      isHoverable={true}
-                    />
-                  </div>
-                  <div className="relative">
-                    <TabletopCard imageSrc={`/assets/roles/${myPrivateState.role.id}.webp`} fallbackText={myPrivateState.role.name} size="player" />
-                    {myPrivateState.role.id === 'shogun' && (
-                      <div className="absolute -top-2 -right-1 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow">
-                        <Crown className="w-3.5 h-3.5" />
-                      </div>
-                    )}
-                  </div>
+              <TokenPile
+                id={`tokens-hp-${myId}`}
+                kind="hp"
+                ledgerKey={`hp:${myId}`}
+                count={myPrivateState.currentHp}
+                seed={`hp-${myId}`}
+                size={26}
+                perRow={2}
+                title={`Resistenza: ${myPrivateState.currentHp} su ${myPrivateState.maxHp}`}
+              />
+              <div className="relative" style={{ width: 104 + 52, height: 148 }}>
+                <div className="absolute" style={{ left: 52, top: 0, rotate: '4deg' }}>
+                  <TabletopCard imageSrc={`/assets/roles/${myPrivateState.role.id}.webp`} fallbackText={myPrivateState.role.name} size="md" />
+                  {myPrivateState.role.id === 'shogun' && (
+                    <div className="absolute -top-2 -right-1 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow">
+                      <Crown className="w-3.5 h-3.5" />
+                    </div>
+                  )}
                 </div>
+                <div
+                  className="absolute cursor-pointer"
+                  style={{ left: 0, top: 0, rotate: '-2deg' }}
+                  onClick={() => myPrivateState.character && setInspectCharacter(myPrivateState.character)}
+                  title="Clicca per vedere l'abilità del personaggio"
+                >
+                  <TabletopCard
+                    imageSrc={`/assets/characters/${myPrivateState.character?.id}.webp`}
+                    fallbackText={myPrivateState.character?.name || 'Personaggio'}
+                    size="md"
+                  />
+                </div>
+                {myPrivateState.currentHp <= 0 && (
+                  <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+                    <span className="font-jp text-6xl text-red-600/85 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)] animate-fadeIn">斬</span>
+                  </div>
+                )}
               </div>
-
-              {/* I tuoi gettoni, appoggiati sul tavolo accanto alle carte */}
-              <div className="flex flex-col gap-2 pb-1">
-                <TokenPile
-                  id={`tokens-hp-${myId}`}
-                  kind="hp"
-                  ledgerKey={`hp:${myId}`}
-                  count={myPrivateState.currentHp}
-                  seed={`hp-${myId}`}
-                  size={28}
-                  title={`Resistenza: ${myPrivateState.currentHp} su ${myPrivateState.maxHp}`}
-                />
-                <TokenPile
-                  id={`tokens-honor-${myId}`}
-                  kind="honor"
-                  ledgerKey={`honor:${myId}`}
-                  count={myPrivateState.honorPoints}
-                  seed={`honor-${myId}`}
-                  size={28}
-                  title={`Punti Onore: ${myPrivateState.honorPoints}`}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* La mano: carte grandi a ventaglio, trascinabili */}
-          {myPrivateState && (
-            <div className="flex-1 flex justify-center px-2">
-              <HandTray
-                cards={visibleCardsForTray}
-                isMyTurn={isPlayPhase}
-                isUnderAttack={isUnderAttack}
-                eligibleReactionCardIds={eligibleReactionCardIds}
-                isDiscardPhase={isDiscardPhase}
-                selectedDiscardIds={selectedDiscardIds}
-                selectedCardId={previewCard?.id || activePlayCard?.id}
-                onCardClick={handleCardClick}
-                onDropToTable={handleDropCard}
-                onDragToTableChange={(card, hovered) => {
-                  setDraggingCard(card);
-                  setDragHoverPlayerId(hovered);
-                }}
+              <TokenPile
+                id={`tokens-honor-${myId}`}
+                kind="honor"
+                ledgerKey={`honor:${myId}`}
+                count={myPrivateState.honorPoints}
+                seed={`honor-${myId}`}
+                size={26}
+                perRow={2}
+                title={`Punti Onore: ${myPrivateState.honorPoints}`}
               />
             </div>
+           </div>
+          </div>
+        )}
+
+        {/* LA TUA MANO: in basso, grande, a ventaglio e trascinabile */}
+        <div className="relative w-full flex justify-center">
+          {myPrivateState && (
+            <HandTray
+              cards={visibleCardsForTray}
+              isMyTurn={isPlayPhase}
+              isUnderAttack={isUnderAttack}
+              reactionType={isUnderAttack ? reaction?.type ?? null : null}
+              eligibleReactionCardIds={eligibleReactionCardIds}
+              isDiscardPhase={isDiscardPhase}
+              selectedDiscardIds={selectedDiscardIds}
+              selectedCardId={previewCard?.id || activePlayCard?.id}
+              blockedReasons={blockedReasons}
+              onHoverCard={card => setHoverHint(card ? blockedReasons[card.id] ?? null : null)}
+              onCardClick={handleCardClick}
+              onDropToTable={handleDropCard}
+              onDragToTableChange={(card, hovered) => {
+                setDraggingCard(card);
+                setDragHoverPlayerId(hovered);
+              }}
+            />
           )}
 
-          {/* Comandi */}
-          <div className="w-56 shrink-0 flex flex-col items-end justify-end gap-2.5 pb-1">
+          {/* Comandi, in basso a destra */}
+          <div className="absolute right-0 bottom-1 w-56 flex flex-col items-end justify-end gap-2.5">
             {isPlayPhase && (
               <span className="text-xs text-amber-300 font-bold seat-label">
                 Armi giocate: {myPrivateState?.weaponsPlayedThisTurn || 0} / {myPrivateState?.maxWeaponsPerTurn || 1}
@@ -966,6 +1046,8 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           </div>
         </div>
       </div>
+      </div>
+      {/* fine SCENA */}
 
       {/* FLOATING CARD PREVIEW (NO SCHEDE: VISUALIZZA LA CARTA FISICA INGRANDITA + PULSANTI GIOCA / ANNULLA) */}
       {previewCard && (
@@ -1083,11 +1165,33 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       {/* Game Over Modal */}
       {/* La schermata finale arriva dopo la scena cinematografica di fine battaglia */}
       {gameState.status === 'game_over' && showGameOver && (
-        <GameOverModal gameState={gameState} onPlayAgain={onReturnToLobby} />
+        <GameOverModal
+          gameState={gameState}
+          onPlayAgain={onReturnToLobby}
+          isHost={Boolean(myPrivateState?.isHost)}
+          onRematch={() => socket.emit('rematch')}
+        />
       )}
 
       {/* Rules Modal */}
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {/* Diversione / Geisha: scegli la carta coperta (o la Proprietà) dell'avversario */}
+      {handPick && pickTarget && (
+        <HiddenCardPicker
+          card={handPick.card}
+          target={pickTarget}
+          onCancel={() => setHandPick(null)}
+          onPickHand={index => {
+            socket.emit('play_action', { cardId: handPick.card.id, targetPlayerId: handPick.targetId, targetHandIndex: index });
+            setHandPick(null);
+          }}
+          onPickProperty={propertyId => {
+            socket.emit('play_action', { cardId: handPick.card.id, targetPlayerId: handPick.targetId, targetPropertyId: propertyId });
+            setHandPick(null);
+          }}
+        />
+      )}
 
       {/* Game History Drawer on the right */}
       <GameHistoryDrawer

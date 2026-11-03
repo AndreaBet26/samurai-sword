@@ -1,12 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { socket } from '../socket';
-import { PlayerPublicState } from '../../../shared/types';
-import { Sword, Users, Bot, Copy, Check, Play, BookOpen } from 'lucide-react';
+import { PlayerPublicState, RoomSettings } from '../../../shared/types';
+import { Sword, Users, Bot, Copy, Check, Play, BookOpen, Link2, X } from 'lucide-react';
+
+const NAME_KEY = 'samurai-sword-nome';
+
+/** Il nome scelto viene ricordato per le volte successive */
+function loadName(): string {
+  try {
+    return localStorage.getItem(NAME_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+function saveName(name: string) {
+  try {
+    localStorage.setItem(NAME_KEY, name);
+  } catch {
+    /* ignora */
+  }
+}
+
+/** Codice stanza preso dal link d'invito (…/?stanza=ABCDE) */
+function codeFromUrl(): string {
+  try {
+    return (new URLSearchParams(window.location.search).get('stanza') ?? '').toUpperCase().slice(0, 6);
+  } catch {
+    return '';
+  }
+}
 
 interface LobbyViewProps {
   currentRoomCode: string | null;
   players: PlayerPublicState[];
   isHost: boolean;
+  myId?: string;
+  settings?: RoomSettings;
+  /** Messaggio breve (es. sei stato tolto dalla stanza) */
+  notice?: string | null;
   onOpenRules: () => void;
 }
 
@@ -14,11 +45,22 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   currentRoomCode,
   players,
   isHost,
+  myId = '',
+  settings = { turnTimer: '120', animSpeed: 'normal' },
+  notice = null,
   onOpenRules
 }) => {
-  const [playerName, setPlayerName] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [playerName, setPlayerName] = useState(loadName);
+  const [joinCode, setJoinCode] = useState(codeFromUrl);
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null);
+  const invited = Boolean(codeFromUrl());
+
+  useEffect(() => {
+    if (playerName.trim()) saveName(playerName.trim());
+  }, [playerName]);
+
+  const updateSettings = (patch: Partial<RoomSettings>) => socket.emit('update_settings', patch);
+  const removePlayer = (playerId: string) => socket.emit('remove_player', { playerId });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,13 +84,16 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     socket.emit('start_game');
   };
 
-  const copyRoomCode = () => {
-    if (currentRoomCode) {
-      navigator.clipboard.writeText(currentRoomCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  /** Copia negli appunti (con ripiego per i browser che non lo permettono) */
+  const copy = (text: string, what: 'code' | 'link') => {
+    const done = () => {
+      setCopied(what);
+      setTimeout(() => setCopied(null), 2000);
+    };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt('Copia questo testo:', text));
+    else window.prompt('Copia questo testo:', text);
   };
+  const inviteLink = currentRoomCode ? `${window.location.origin}/?stanza=${currentRoomCode}` : '';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -70,6 +115,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             L'epico gioco di carte del Giappone feudale in multiplayer online
           </p>
         </div>
+
+        {notice && !currentRoomCode && <p className="text-center text-sm text-amber-300 mb-4">{notice}</p>}
+        {invited && !currentRoomCode && (
+          <p className="text-center text-sm text-slate-300 mb-4">
+            Sei stato invitato nella stanza <span className="font-mono font-bold text-amber-400">{joinCode}</span>: scrivi il tuo nome e premi Entra.
+          </p>
+        )}
 
         {!currentRoomCode ? (
           /* Initial Screen: Create or Join */
@@ -144,13 +196,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   {currentRoomCode}
                 </span>
               </div>
-              <button
-                onClick={copyRoomCode}
-                className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                {copied ? 'Copiato!' : 'Copia'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => copy(currentRoomCode, 'code')}
+                  className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Copia il codice della stanza"
+                >
+                  {copied === 'code' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied === 'code' ? 'Copiato!' : 'Codice'}
+                </button>
+                <button
+                  onClick={() => copy(inviteLink, 'link')}
+                  className="py-2 px-3 rounded-xl bg-amber-600/90 hover:bg-amber-500 text-xs font-bold text-slate-950 flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Copia il link: chi lo apre entra direttamente nella stanza"
+                >
+                  {copied === 'link' ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                  {copied === 'link' ? 'Copiato!' : 'Copia link invito'}
+                </button>
+              </div>
             </div>
 
             {/* Players List */}
@@ -182,10 +245,65 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           IA
                         </span>
                       )}
+                      {isHost && p.id !== myId && !p.isHost && (
+                        <button
+                          onClick={() => removePlayer(p.id)}
+                          className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer p-0.5"
+                          title={`Togli ${p.name} dalla stanza`}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Impostazioni della partita (le sceglie l'host, gli altri le vedono) */}
+            <div className="mb-6 space-y-2.5">
+              {(
+                [
+                  {
+                    key: 'turnTimer' as const,
+                    label: 'Tempo per turno',
+                    options: [
+                      ['60', '1 minuto'],
+                      ['120', '2 minuti'],
+                      ['off', 'Nessun limite']
+                    ]
+                  },
+                  {
+                    key: 'animSpeed' as const,
+                    label: 'Animazioni',
+                    options: [
+                      ['normal', 'Normali'],
+                      ['fast', 'Veloci']
+                    ]
+                  }
+                ] as const
+              ).map(row => (
+                <div key={row.key} className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">{row.label}</span>
+                  <div className="flex items-center gap-1">
+                    {row.options.map(([value, text]) => {
+                      const active = settings[row.key] === value;
+                      return (
+                        <button
+                          key={value}
+                          disabled={!isHost}
+                          onClick={() => updateSettings({ [row.key]: value } as Partial<RoomSettings>)}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                            active ? 'bg-amber-500 text-slate-950' : isHost ? 'text-slate-400 hover:text-slate-100 cursor-pointer' : 'text-slate-600'
+                          }`}
+                        >
+                          {text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Controls */}

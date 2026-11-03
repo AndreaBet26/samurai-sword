@@ -3,6 +3,7 @@ import confetti from 'canvas-confetti';
 import { GameEvent, PlayerPublicState } from '../../../shared/types';
 import { soundManager } from '../utils/soundEffects';
 import { tokenLedger } from '../utils/tokenLedger';
+import { getTableScale, getAnimRate } from '../utils/tableLayout';
 
 /**
  * EFFETTI CINEMATOGRAFICI
@@ -67,7 +68,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
     const now = performance.now();
     // Se la coda è troppo lunga (scheda in background, molte azioni rapide) si accelera
     const backlog = nextFreeAtRef.current - now;
-    const speed = backlog > 4000 ? 0.35 : 1;
+    const speed = (backlog > 4000 ? 0.35 : 1) / getAnimRate();
 
     for (const ev of fresh) {
       const start = Math.max(now, nextFreeAtRef.current);
@@ -110,7 +111,10 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
   const reduced = () =>
     typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-  const nameOf = (id: string) => playersRef.current.find(p => p.id === id)?.name ?? '';
+  /** Nomi scelti dai giocatori: sempre "neutralizzati" prima di finire nell'HTML degli effetti */
+  const escapeHtml = (t: string) =>
+    t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const nameOf = (id: string) => escapeHtml(playersRef.current.find(p => p.id === id)?.name ?? '');
 
   const anchorEl = (playerId: string): HTMLElement | null =>
     document.getElementById(playerId === myId ? 'table-player-mat' : `table-opponent-${playerId}`);
@@ -175,7 +179,11 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
     size = 34,
     opts: { duration?: number; rise?: number; delay?: number; glow?: string } = {}
   ) => {
-    const { duration = 1300, rise = 70, delay = 0, glow = color } = opts;
+    const { delay = 0, glow = color } = opts;
+    const duration = (opts.duration ?? 1300) / getAnimRate();
+    const sc = Math.max(0.6, getTableScale());
+    const rise = (opts.rise ?? 70) * sc;
+    size = size * sc;
     const el = spawn(
       {
         transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`,
@@ -284,7 +292,13 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
     html: string,
     opts: { w?: number; h?: number; duration?: number; arc?: number; spin?: number; endScale?: number; fadeOut?: boolean; trail?: string } = {}
   ): number => {
-    const { w = CARD_W, h = CARD_H, duration = 650, arc = 80, spin = 0, endScale = 0.8, fadeOut = true, trail } = opts;
+    const sc = getTableScale();
+    const { spin = 0, endScale = 0.8, fadeOut = true, trail } = opts;
+    const duration = (opts.duration ?? 650) / getAnimRate();
+    // Dimensioni e arco seguono la scala del tavolo (lo schermo può essere più piccolo della scena)
+    const w = (opts.w ?? CARD_W) * sc;
+    const h = (opts.h ?? CARD_H) * sc;
+    const arc = (opts.arc ?? 80) * sc;
     const el = spawn(
       {
         width: `${w}px`,
@@ -329,7 +343,8 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
     window.setTimeout(() => {
       if (fromKey) tokenLedger.add(fromKey, -1); // il gettone lascia la pila
       const size = kind === 'hp' ? 26 : 30;
-      const d = fly(from, to, kind === 'hp' ? heartHtml(size) : lotusHtml(size), {
+      const px = size * getTableScale();
+      const d = fly(from, to, kind === 'hp' ? heartHtml(px) : lotusHtml(px), {
         w: size,
         h: size,
         duration,
@@ -341,8 +356,8 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
       });
       window.setTimeout(() => {
         if (toKey) tokenLedger.add(toKey, 1); // il gettone atterra nella pila di destinazione
+        soundManager.play('tokenDrop', { volume: 0.8 });
       }, d);
-      if (!reduced() && delay === 0) soundManager.playCardSlide();
     }, delay);
   };
 
@@ -356,7 +371,8 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
     `<div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${size * 0.62}px;background:radial-gradient(circle at 35% 30%, #f5d0fe, #a855f7 55%, #581c87);border:2px solid #f0abfc;box-shadow:0 0 18px #c084fc">🪷</div>`;
 
   /** Banner centrale cinematografico (kanji + titolo + sottotitolo). */
-  const cinematicBanner = (kanji: string, title: string, subtitle: string, color: string, duration = 1600) => {
+  const cinematicBanner = (kanji: string, title: string, subtitle: string, color: string, baseDuration = 1600) => {
+    const duration = baseDuration / getAnimRate();
     const cx = window.innerWidth / 2;
     const cy = window.innerHeight / 2;
     // Vignetta scura che "rallenta" la scena
@@ -430,7 +446,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             screenFlash(lethal ? 'rgba(220,38,38,0.85)' : 'rgba(220,38,38,0.55)');
             shake(document.getElementById('table-root'), lethal ? 10 : 5, 380);
           }
-          if (!hurried && !ev.weapon) soundManager.playTaiko();
+          if (!hurried) soundManager.play(ev.weapon ? 'swordHit' : 'damage');
           // I gettoni Vita persi vengono buttati nella riserva al centro del tavolo
           const fromHp = hpPoint(ev.targetId);
           const toReserve = reservePoint();
@@ -441,10 +457,18 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
         }
 
         case 'parry': {
+          // Jiujitsu: non è una parata, l'arma viene semplicemente scartata
+          if (ev.against === 'jujutsu') {
+            const from = playerPoint(ev.playerId);
+            fly(from, discardPoint(), cardHtml(ev.cardTemplateId), { duration: 620, arc: 60, spin: 160, endScale: 0.9 });
+            if (!hurried) soundManager.play('cardPlace');
+            floatText(from, 'Arma scartata', '#fde68a', 24, { glow: '#92400e' });
+            break;
+          }
           const el = anchorEl(ev.playerId);
           const p = centerOf(el);
-          const label = ev.against === 'jujutsu' ? 'SCHIVATO!' : 'PARATA!';
-          const color = ev.against === 'jujutsu' ? '#fbbf24' : '#e0f2fe';
+          const label = 'PARATA!';
+          const color = '#e0f2fe';
           // Scudo che si apre
           const shield = spawn(
             {
@@ -472,7 +496,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           burst(p, ['#ffffff', '#fde68a', '#bae6fd'], 45, { spread: 120, startVelocity: 35, scalar: 0.6, gravity: 0.8 });
           glow(el, 'rgba(186,230,253,0.9)', 700);
           floatText(p, `🛡️ ${label}`, color, 32, { glow: '#0ea5e9' });
-          if (ev.playerId !== myId && !hurried) soundManager.playParryClash();
+          if (!hurried) soundManager.play('parry');
           break;
         }
 
@@ -494,7 +518,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             shake(document.getElementById('table-root'), 12, 500);
           }
           burst(centerOf(el), ['#7f1d1d', '#dc2626', '#000000'], 70, { spread: 160, startVelocity: 40 });
-          if (!hurried) soundManager.playGong();
+          if (!hurried) soundManager.play('defeat');
           break;
         }
 
@@ -506,13 +530,14 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             burst(to, ['#f0abfc', '#c084fc', '#facc15'], 50, { spread: 100, gravity: 0.6, scalar: 0.7 });
             glow(anchorEl(ev.toId), 'rgba(232,121,249,0.9)', 900);
             floatText(to, '+1 🪷', '#f5d0fe', 34, { glow: '#a855f7' });
-            if (!hurried) soundManager.playHonorChime();
+            if (!hurried) soundManager.play('honorGain');
           }, reduced() ? 300 : 900);
           floatText(from, '−1 🪷', '#d8b4fe', 26, { glow: '#581c87', delay: 100 });
           break;
         }
 
         case 'honor_loss': {
+          if (!hurried) soundManager.play('honorLoss');
           ev.playerIds.forEach((id, i) => {
             const p = honorPoint(id);
             window.setTimeout(() => tokenLedger.add(`honor:${id}`, -1), i * 80); // il gettone esce dal gioco
@@ -545,7 +570,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             );
             floatText(to, 'Mazzo rimescolato!', '#fde68a', 26, { duration: 1700, rise: 40, glow: '#b45309' });
           }, 600);
-          if (!hurried) soundManager.playRiffleShuffle();
+          if (!hurried) soundManager.play('shuffle');
           break;
         }
 
@@ -611,6 +636,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
 
         case 'heal': {
           if (ev.amount <= 0) break;
+          if (!hurried) soundManager.play('heal');
           const el = anchorEl(ev.playerId);
           const p = centerOf(el);
           // I gettoni tornano dalla riserva al giocatore
@@ -636,7 +662,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             c,
             2300
           );
-          soundManager.playGong();
+          soundManager.play('victory');
           [0.15, 0.85].forEach((x, i) =>
             window.setTimeout(
               () => burst({ x: window.innerWidth * x, y: window.innerHeight * 0.7 }, [c, '#ffffff', '#fde68a'], 120, { spread: 70, startVelocity: 55, angle: i === 0 ? 60 : 120, shapes: ['square', 'circle'], ticks: 200 }),

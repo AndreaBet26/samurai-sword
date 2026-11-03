@@ -6,11 +6,16 @@ import { Trophy, Crown, Skull, RefreshCw } from 'lucide-react';
 interface GameOverModalProps {
   gameState: GameState;
   onPlayAgain: () => void;
+  /** Solo l'host può avviare la rivincita */
+  isHost?: boolean;
+  onRematch?: () => void;
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
   gameState,
-  onPlayAgain
+  onPlayAgain,
+  isHost = false,
+  onRematch
 }) => {
   const scores = gameState.finalScores;
 
@@ -129,13 +134,22 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
         )}
 
-        <button
-          onClick={onPlayAgain}
-          className="py-3 px-8 rounded-xl font-title font-bold text-base bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl shadow-amber-500/25 flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
-        >
-          <RefreshCw className="w-5 h-5" />
-          Ritorna alla Lobby
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          {isHost ? (
+            <button
+              onClick={onRematch}
+              className="py-3 px-8 rounded-xl font-title font-bold text-base bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl shadow-amber-500/25 flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
+            >
+              <RefreshCw className="w-5 h-5" />
+              Rivincita
+            </button>
+          ) : (
+            <p className="text-sm text-slate-400 italic">In attesa che l'host avvii la rivincita…</p>
+          )}
+          <button onClick={onPlayAgain} className="text-xs font-semibold text-slate-400 hover:text-slate-100 underline underline-offset-4 cursor-pointer">
+            Esci dalla stanza
+          </button>
+        </div>
       </div>
     </div>
   );

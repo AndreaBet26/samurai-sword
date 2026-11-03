@@ -31,6 +31,8 @@ export interface CharacterDef {
   title: string;
   maxHp: number;
   abilityDescription: string;
+  /** Abilità in poche parole, mostrata sul tavolo */
+  shortAbility?: string;
   avatar: string; // emoji or icon reference
 }
 
@@ -179,6 +181,14 @@ export type GameEvent = { id: number; at: number } & (
 /** Distribuisce Omit sulle varianti dell'unione (per creare eventi senza id/at) */
 export type GameEventInput = GameEvent extends infer E ? (E extends any ? Omit<E, 'id' | 'at'> : never) : never;
 
+/** Impostazioni scelte dall'host nella lobby */
+export interface RoomSettings {
+  /** Tempo massimo per il turno: 1 minuto, 2 minuti o nessun limite */
+  turnTimer: 'off' | '60' | '120';
+  /** Velocità delle animazioni */
+  animSpeed: 'normal' | 'fast';
+}
+
 export interface GameState {
   roomCode: string;
   status: 'lobby' | 'playing' | 'game_over';
@@ -197,6 +207,8 @@ export interface GameState {
   logs: GameLogEntry[];
   /** Ultimi eventi di gioco da animare (vedi GameEvent) */
   events: GameEvent[];
+  /** Impostazioni della stanza (scelte dall'host) */
+  settings?: RoomSettings;
   winnerTeam?: 'shogun' | 'ninja' | 'ronin' | 'draw';
   finalScores?: {
     shogunSamurai: number;

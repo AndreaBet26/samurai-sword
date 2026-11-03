@@ -28,6 +28,26 @@ export const App: React.FC = () => {
   });
   const [myPrivateState, setMyPrivateState] = useState<PlayerPrivateState | undefined>(undefined);
   const [isOffline, setIsOffline] = useState(false);
+  // Messaggio breve mostrato nella lobby (es. "L'host ti ha tolto dalla stanza")
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Telefono tenuto in verticale: il tavolo si gioca solo in orizzontale
+  const [isPortraitPhone, setIsPortraitPhone] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const touch = window.matchMedia('(pointer: coarse)').matches;
+      const portrait = window.innerHeight > window.innerWidth;
+      const small = Math.min(window.innerWidth, window.innerHeight) < 820;
+      setIsPortraitPhone(touch && portrait && small);
+    };
+    check();
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
+  }, []);
   const justResumedRef = useRef(false);
 
   useEffect(() => {
@@ -35,6 +55,9 @@ export const App: React.FC = () => {
       setCurrentRoomCode(data.roomCode);
       setIsHost(data.isHost);
       if (data.token) saveSession({ token: data.token, roomCode: data.roomCode });
+      setNotice(null);
+      // Il link d'invito ha fatto il suo lavoro: lo togliamo dalla barra dell'indirizzo
+      if (window.location.search.includes('stanza=')) window.history.replaceState(null, '', window.location.pathname);
       // Rientro: al primo aggiornamento di stato decidiamo se saltare la cutscene iniziale
       if (data.resumed) justResumedRef.current = true;
     });
@@ -66,6 +89,13 @@ export const App: React.FC = () => {
       }
     });
 
+    // L'host ti ha tolto dalla stanza
+    socket.on('kicked', (data: { message: string }) => {
+      clearSession();
+      setCurrentRoomCode(null);
+      setNotice(data.message);
+    });
+
     socket.on('error_message', (data: { message: string }) => {
       alert(data.message);
     });
@@ -77,6 +107,7 @@ export const App: React.FC = () => {
       socket.off('disconnect', onDisconnect);
       socket.off('game_state_update');
       socket.off('error_message');
+      socket.off('kicked');
     };
   }, []);
 
@@ -109,7 +140,10 @@ export const App: React.FC = () => {
         <LobbyView
           currentRoomCode={currentRoomCode}
           players={gameState.players}
-          isHost={isHost}
+          isHost={myPrivateState?.isHost ?? isHost}
+          myId={myPrivateState?.id ?? ''}
+          settings={gameState.settings}
+          notice={notice}
           onOpenRules={() => setShowRules(true)}
         />
       ) : showIntro && myPrivateState?.character && myPrivateState?.role ? (
@@ -129,6 +163,16 @@ export const App: React.FC = () => {
       )}
 
       {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+
+      {isGameActive && isPortraitPhone && (
+        <div className="fixed inset-0 z-[10000] bg-slate-950 flex flex-col items-center justify-center text-center px-8">
+          <div className="text-6xl mb-6 animate-pulse" style={{ display: 'inline-block', transform: 'rotate(90deg)' }}>
+            📱
+          </div>
+          <div className="font-title text-2xl font-black text-amber-300 mb-2">Ruota il telefono</div>
+          <div className="text-slate-300 text-sm">Samurai Sword si gioca in orizzontale.</div>
+        </div>
+      )}
 
       {isOffline && currentRoomCode && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] bg-red-950/95 border border-red-600 text-red-200 text-sm font-semibold px-4 py-2 rounded-lg shadow-xl">

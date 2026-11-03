@@ -32,3 +32,6 @@ assets_originali/
 
 # File di servizio creati da macOS sui dischi esterni
 ._*
+
+# Screenshot temporanei generati durante lo sviluppo
+Claude outputs/

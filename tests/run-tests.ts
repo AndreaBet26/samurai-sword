@@ -162,6 +162,24 @@ async function testDecisionTimers() {
   Object.assign(DECISION_TIME_MS, saved);
 }
 
+async function testLobby() {
+  console.log('\n5) Lobby: impostazioni e rivincita');
+  const e: any = new GameEngine('TEST');
+  for (let i = 0; i < 4; i++) e.addPlayer('p' + i, 'P' + i, i === 0, i > 0);
+  e.updateSettings({ turnTimer: 'off', animSpeed: 'fast' });
+  check(e.state.settings.turnTimer === 'off' && e.state.settings.animSpeed === 'fast', "L'host cambia le impostazioni");
+  e.removePlayer('p3');
+  check(e.state.players.length === 3, 'Un giocatore può essere tolto dalla lobby');
+  e.startGame();
+  e.completeInitialDeal();
+  for (let i = 0; i < 10; i++) await tick();
+  e.triggerGameOver();
+  check(e.resetToLobby() === true && e.state.status === 'lobby' && e.state.players.length === 3, 'Rivincita: tutti tornano nella stessa stanza');
+  check(e.state.players.every((p: any) => p.handCount === 0 && !p.character), 'Rivincita: carte e personaggi azzerati');
+  check(e.startGame() === true, 'Rivincita: la nuova partita parte');
+  e.dispose();
+}
+
 async function testSimulation(gamesPerSize: number) {
   console.log(`\n4) Simulazione: ${gamesPerSize} partite tra bot per ogni numero di giocatori`);
   GameEngine.decisionTimersEnabled = false;
@@ -198,6 +216,7 @@ async function testSimulation(gamesPerSize: number) {
   GameEngine.decisionTimersEnabled = false;
   fastTimers();
   await testScenarios();
+  await testLobby();
   await testSimulation(Number(process.env.SIM_GAMES) || 40);
   console.log(failures ? `\n✘ ${failures} test falliti` : '\n✔ Tutti i test superati');
   process.exit(failures ? 1 : 0);

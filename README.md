@@ -55,13 +55,16 @@ Il server Express servirà sia il gioco che i WebSocket direttamente all'indiriz
 
 ### 5. Test automatici
 ```bash
-npm test         # regole, scenari di gioco, timer e 200 partite simulate tra bot
+npm test         # regole, tutte le carte, scenari di gioco, timer e 200 partite simulate tra bot
 npm run typecheck
 ```
 
 ### Note utili
 - **Rientro in partita:** se ricarichi la pagina o perdi la connessione rientri automaticamente al tuo posto. Dopo 30 secondi di assenza un bot gioca per te finché non torni.
 - **Timer:** ogni decisione ha un tempo massimo (2 minuti per il turno, 25 secondi per difendersi). Allo scadere decide l'IA, così la partita non si blocca.
+- **App installabile:** aprendo il gioco pubblicato (`npm run build` + `npm start`) con Chrome o Edge compare il pulsante "Installa" nella barra dell'indirizzo; su telefono: menu → "Aggiungi a schermata Home". Si apre a schermo intero, in orizzontale.
+- **Telefono:** si gioca solo in orizzontale; in verticale compare "Ruota il telefono".
+- **Suoni:** sono generati dal gioco; per usare file audio tuoi vedi `client/public/assets/sounds/LEGGIMI.md`.
 - **Immagini:** il gioco usa versioni WebP leggere in `client/public/assets`. Gli originali ad alta risoluzione stanno in `assets_originali/` (esclusa da git).
 
 ---

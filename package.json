@@ -10,7 +10,7 @@
     "dev:client": "vite client --port 5173",
     "dev": "node scripts/dev.js",
     "build": "vite build client",
-    "test": "tsx tests/run-tests.ts",
+    "test": "node scripts/test.js",
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { CardDef, LastPlayedCardAnim } from '../../../shared/types';
 import { TabletopCard } from './TabletopCard';
 import { soundManager } from '../utils/soundEffects';
+import { getTableScale, getAnimRate } from '../utils/tableLayout';
 import { Sparkles } from 'lucide-react';
 
 interface FlyingCardInstance {
@@ -69,130 +70,87 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
   const lastDrawnBatchKeyRef = useRef<string>('');
   const hasRunInitialDealRef = useRef<boolean>(false);
 
-  // Exact coordinates helper for large realistic cards (104x148px)
+  /** Livello (fuori dalla scena scalata) dove volano le carte: coordinate dello schermo */
+  const layerRef = useRef<HTMLDivElement>(null);
+
+  /** Centro di un elemento del tavolo sullo schermo */
   const getTargetCoords = (id: string): { x: number; y: number } => {
-    // 1. Player's Hand: directly into the center of the player's bottom hand dock
-    if (id === 'table-player-hand') {
-      return {
-        x: window.innerWidth / 2 - 52,
-        y: window.innerHeight - 175
-      };
-    }
-
-    // 2. Player's Field (Terrain): directly in front of the hand on the table felt
-    if (id === 'table-player-field') {
-      const el = document.getElementById('table-player-field');
-      if (el) {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) {
-          return {
-            x: r.left + r.width / 2 - 52,
-            y: r.top + r.height / 2 - 74
-          };
-        }
-      }
-      return {
-        x: window.innerWidth / 2 - 52,
-        y: window.innerHeight - 270
-      };
-    }
-
-    // 3. Center Play Zone
-    if (id === 'table-play-zone') {
-      const el = document.getElementById('table-play-zone');
-      if (el) {
-        const r = el.getBoundingClientRect();
-        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
-      }
-      return {
-        x: window.innerWidth / 2 - 52,
-        y: window.innerHeight / 2 - 74
-      };
-    }
-
-    // 4. Center Deck Pile
-    if (id === 'table-deck-pile') {
-      const el = document.getElementById('table-deck-pile');
-      if (el) {
-        const r = el.getBoundingClientRect();
-        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
-      }
-      return {
-        x: window.innerWidth / 2 - 140,
-        y: window.innerHeight / 2 - 74
-      };
-    }
-
-    // 5. Center Discard Pile
-    if (id === 'table-discard-pile') {
-      const el = document.getElementById('table-discard-pile');
-      if (el) {
-        const r = el.getBoundingClientRect();
-        return { x: r.left + r.width / 2 - 52, y: r.top + r.height / 2 - 74 };
-      }
-      return {
-        x: window.innerWidth / 2 + 80,
-        y: window.innerHeight / 2 - 74
-      };
-    }
-
-    // 6. Opponents on table
     const el = document.getElementById(id);
     if (el) {
       const r = el.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) {
-        return {
-          x: r.left + r.width / 2 - 52,
-          y: r.top + r.height / 2 - 74
-        };
+        // La mano: le carte arrivano nella parte bassa, dove stanno le carte
+        if (id === 'table-player-hand') return { x: r.left + r.width / 2, y: r.bottom - r.height * 0.42 };
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       }
     }
-
-    // Default table center
-    return {
-      x: window.innerWidth / 2 - 52,
-      y: window.innerHeight / 2 - 74
-    };
+    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   };
 
+  /**
+   * Carta che vola da un punto all'altro del tavolo con una traiettoria ad arco,
+   * un leggero sollevamento a metà strada e un atterraggio morbido (Web Animations API).
+   */
   const spawnFlyingCard = (
     imageSrc: string,
     fromId: string,
     toId: string,
-    durationMs: number = 460,
+    durationMs: number = 520,
     rotation: number = 0,
     onComplete?: () => void
   ) => {
+    const layer = layerRef.current;
     const from = getTargetCoords(fromId);
     const to = getTargetCoords(toId);
-    const id = `flying-${Date.now()}-${Math.random()}`;
-
-    const newCard: FlyingCardInstance = {
-      id,
-      imageSrc,
-      startX: from.x,
-      startY: from.y,
-      endX: to.x,
-      endY: to.y,
-      rotation,
-      durationMs,
-      active: false
-    };
-
-    setFlyingCards(prev => [...prev, newCard]);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setFlyingCards(prev =>
-          prev.map(c => (c.id === id ? { ...c, active: true } : c))
-        );
-      });
-    });
-
-    setTimeout(() => {
-      setFlyingCards(prev => prev.filter(c => c.id !== id));
+    const s = getTableScale();
+    durationMs = durationMs / getAnimRate();
+    const w = 104 * s;
+    const h = 148 * s;
+    if (!layer) {
       onComplete?.();
-    }, durationMs + 40);
+      return;
+    }
+    const el = document.createElement('div');
+    Object.assign(el.style, {
+      position: 'fixed',
+      left: '0px',
+      top: '0px',
+      width: `${w}px`,
+      height: `${h}px`,
+      borderRadius: `${8 * s}px`,
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      zIndex: '75',
+      willChange: 'transform',
+      boxShadow: '0 14px 28px rgba(0,0,0,0.55)',
+      border: '1px solid rgba(217,119,6,0.6)',
+      background: '#0f172a'
+    });
+    el.innerHTML = `<img src="${imageSrc}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" />`;
+    layer.appendChild(el);
+
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const arc = Math.min(140, dist * 0.18) * s * 1.4;
+    const p = (x: number, y: number) => `translate(${x - w / 2}px, ${y - h / 2}px)`;
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2 - arc;
+    const anim = el.animate(
+      [
+        { transform: `${p(from.x, from.y)} rotate(0deg) scale(1)`, offset: 0 },
+        { transform: `${p(midX, midY)} rotate(${rotation * 0.6}deg) scale(1.08)`, offset: 0.5 },
+        { transform: `${p(to.x, to.y)} rotate(${rotation}deg) scale(1)`, offset: 1 }
+      ],
+      { duration: durationMs, easing: 'cubic-bezier(0.33, 0, 0.15, 1)', fill: 'forwards' }
+    );
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      el.remove();
+      onComplete?.();
+    };
+    anim.onfinish = finish;
+    setTimeout(finish, durationMs + 200); // sicurezza se la scheda è in background
   };
 
   // 1. ANIMAZIONE DI DISTRIBUZIONE INIZIALE (DEAL COMPLETO A TUTTI I GIOCATORI PRIMA DI GIOCARE!)
@@ -281,7 +239,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
     // A completamento della distribuzione di tutte le carte a tutti
     setTimeout(() => {
-      soundManager.playTaiko();
+      soundManager.play('cardPlace');
       onInitialDealComplete?.();
     }, currentDelay + 600);
   }, [isInitialDealing, initialHandCards, turnOrder, opponentIds, myId]);
@@ -392,7 +350,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         480,
         (Math.random() - 0.5) * 4,
         () => {
-          soundManager.playCardSlam();
+          soundManager.play(card.actionType === 'battle_cry' ? 'battleCry' : 'cardPlace');
           setActivePlayCard(card);
 
           // Taglio, parata e carte pescate sono animati da EffectsLayer (un solo effetto per azione)
@@ -408,7 +366,7 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
               440,
               (Math.random() - 0.5) * 6
             );
-          }, 1300); // la carta resta leggibile al centro, poi va negli scarti
+          }, 1300 / getAnimRate()); // la carta resta leggibile al centro, poi va negli scarti
         }
       );
     }
@@ -416,41 +374,8 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
 
   return (
     <>
-      {/* Carte in volo: dimensioni 104x148px con fisica ultra-fluida ed elevazione tridimensionale */}
-      {flyingCards.map(c => {
-        const deltaX = c.endX - c.startX;
-        const deltaY = c.endY - c.startY;
-
-        return (
-          <div
-            key={c.id}
-            style={{
-              position: 'fixed',
-              left: c.startX,
-              top: c.startY,
-              width: '104px',
-              height: '148px',
-              zIndex: 75,
-              pointerEvents: 'none',
-              transform: c.active
-                ? `translate3d(${deltaX}px, ${deltaY}px, 0) rotate(${c.rotation}deg) scale(1)`
-                : 'translate3d(0, 0, 0) rotate(0deg) scale(1.08)',
-              transition: `transform ${c.durationMs}ms cubic-bezier(0.18, 0.89, 0.32, 1), opacity ${c.durationMs}ms ease-out`,
-              boxShadow: c.active
-                ? '0 10px 24px rgba(0,0,0,0.75)'
-                : '0 25px 45px rgba(0,0,0,0.9)',
-              opacity: c.active ? 1 : 0.96
-            }}
-            className="rounded-lg overflow-hidden border border-amber-600/70 bg-slate-900"
-          >
-            <img
-              src={c.imageSrc}
-              alt="Carta in volo"
-              className="w-full h-full object-cover object-center block"
-            />
-          </div>
-        );
-      })}
+      {/* Livello delle carte in volo */}
+      <div ref={layerRef} className="fixed inset-0 pointer-events-none z-[75]" aria-hidden="true" />
 
       {/* Raggio fendente dell'arma verso il bersaglio */}
 
@@ -461,13 +386,13 @@ export const TableCardAnimator: React.FC<TableCardAnimatorProps> = ({
         <div
           style={{
             position: 'fixed',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
+            left: getTargetCoords('table-play-zone').x,
+            top: getTargetCoords('table-play-zone').y,
+            transform: `translate(-50%, -50%) scale(${getTableScale() * 1.15})`,
             zIndex: 65,
             pointerEvents: 'none'
           }}
-          className="flex flex-col items-center gap-2 animate-fadeIn"
+          className="flex flex-col items-center gap-2 card-showcase"
         >
           <div className="rounded-xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.95)] ring-4 ring-amber-400/80 bg-slate-950">
             <TabletopCard

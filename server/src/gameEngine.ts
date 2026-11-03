@@ -6,6 +6,7 @@ import {
   GameEventInput,
   GameLogEntry,
   GameState,
+  RoomSettings,
   PendingReaction,
   PlayerPrivateState,
   PlayerPublicState,
@@ -68,7 +69,8 @@ export class GameEngine {
       pendingReaction: null,
       lastPlayedCard: null,
       logs: [],
-      events: []
+      events: [],
+      settings: { turnTimer: '120', animSpeed: 'normal' }
     };
   }
 
@@ -234,6 +236,70 @@ export class GameEngine {
         this.notifyStateChange();
       }
     }
+  }
+
+  /** L'host cambia le impostazioni (solo in lobby) */
+  public updateSettings(patch: Partial<RoomSettings>) {
+    if (this.state.status !== 'lobby') return;
+    const cur = this.state.settings ?? { turnTimer: '120', animSpeed: 'normal' };
+    const next: RoomSettings = { ...cur };
+    if (patch.turnTimer === 'off' || patch.turnTimer === '60' || patch.turnTimer === '120') next.turnTimer = patch.turnTimer;
+    if (patch.animSpeed === 'normal' || patch.animSpeed === 'fast') next.animSpeed = patch.animSpeed;
+    this.state.settings = next;
+    this.notifyStateChange();
+  }
+
+  /**
+   * Rivincita: riporta la stanza in lobby con gli stessi giocatori (bot compresi).
+   * Chi si è disconnesso viene tolto; ruoli, personaggi e carte verranno riassegnati alla partenza.
+   */
+  public resetToLobby(): boolean {
+    if (this.state.status !== 'game_over') return false;
+    if (this.decisionTimer) clearTimeout(this.decisionTimer);
+    this.decisionTimer = null;
+    this.decisionKey = '';
+    for (const [id, p] of Array.from(this.playersPrivate.entries())) {
+      if (!p.isBot && (!p.isConnected || p.isAway)) {
+        this.playersPrivate.delete(id);
+        continue;
+      }
+      Object.assign(p, {
+        character: null,
+        role: ROLES_DATA.samurai,
+        currentHp: 4,
+        maxHp: 4,
+        honorPoints: 4,
+        isHarmless: false,
+        isDefeatedThisRound: false,
+        handCount: 0,
+        propertiesInPlay: [],
+        weaponsPlayedThisTurn: 0,
+        maxWeaponsPerTurn: 1,
+        hand: []
+      });
+    }
+    // Se l'host se n'è andato, il ruolo passa a un altro umano
+    const all = Array.from(this.playersPrivate.values());
+    if (all.length && !all.some(p => p.isHost)) (all.find(p => !p.isBot) ?? all[0]).isHost = true;
+
+    this.deck = [];
+    this.discardPile = [];
+    this.pendingBushidoCard = null;
+    Object.assign(this.state, {
+      status: 'lobby',
+      turnPlayerId: '',
+      turnPhase: 'recover',
+      turnOrder: [],
+      pendingReaction: null,
+      lastPlayedCard: null,
+      logs: [],
+      events: [],
+      winnerTeam: undefined,
+      finalScores: undefined
+    });
+    this.addLog('Rivincita! Si torna nella stanza.', 'info');
+    this.notifyStateChange();
+    return true;
   }
 
   public startGame(): boolean {
@@ -660,7 +726,9 @@ export class GameEngine {
     playerId: string,
     cardId: string,
     targetPlayerId?: string,
-    targetPropertyId?: string
+    targetPropertyId?: string,
+    /** Diversione/Geisha: posizione della carta coperta scelta dal giocatore nella mano del bersaglio */
+    targetHandIndex?: number
   ): boolean {
     if (this.state.status !== 'playing' || this.state.turnPlayerId !== playerId) return false;
     if (this.state.turnPhase !== 'play') return false;
@@ -763,9 +831,10 @@ export class GameEngine {
         this.removeCardFromHand(player, cardId);
         this.discardPile.push(card);
 
-        // Steal random card from target's hand
-        const randomIndex = Math.floor(Math.random() * target.hand.length);
-        const stolenCard = target.hand.splice(randomIndex, 1)[0];
+        // Il giocatore sceglie una carta coperta: resta comunque casuale (non può sapere cosa c'è sotto)
+        // (l'indice va calcolato prima: pickHiddenCardIndex rimescola e sostituisce l'array della mano)
+        const stealIndex = this.pickHiddenCardIndex(target, targetHandIndex);
+        const stolenCard = target.hand.splice(stealIndex, 1)[0];
         player.hand.push(stolenCard);
         this.emit({ kind: 'steal', fromId: target.id, toId: player.id });
 
@@ -794,9 +863,9 @@ export class GameEngine {
             this.addLog(`${player.name} usa Geisha e fa scartare ${discardedProp.name} di ${target.name}!`, 'action');
           }
         } else if (target.hand.length > 0) {
-          // Discard random card from hand
-          const randomIndex = Math.floor(Math.random() * target.hand.length);
-          const discardedHand = target.hand.splice(randomIndex, 1)[0];
+          // Carta coperta scelta dal giocatore (casuale: non si vede cosa c'è sotto)
+          const discardIndex = this.pickHiddenCardIndex(target, targetHandIndex);
+          const discardedHand = target.hand.splice(discardIndex, 1)[0];
           this.discardPile.push(discardedHand);
           this.emit({ kind: 'discard_from_hand', playerId: target.id, cardTemplateId: discardedHand.templateId });
           this.addLog(`${player.name} usa Geisha e fa scartare una carta dalla mano di ${target.name}!`, 'action');
@@ -1093,6 +1162,17 @@ export class GameEngine {
     // REGOLA UFFICIALE SAMURAI SWORD: Il giocatore abbattuto NON scarta la mano né le proprietà!
     // Rimane semplicemente Inoffensivo fino al suo prossimo turno, quando recupererà tutta la Resistenza al massimo.
     this.addLog(`${target.name} è Inoffensivo fino al suo prossimo turno (recupererà tutti i punti ferita e mantiene le sue carte).`, 'info');
+  }
+
+  /**
+   * Indice reale della carta "scelta" tra quelle coperte di un avversario.
+   * La mano viene prima mescolata: la posizione scelta non può rivelare quale carta sia
+   * (es. l'ultima pescata), quindi la scelta resta alla cieca come al tavolo vero.
+   */
+  private pickHiddenCardIndex(target: PlayerPrivateState, chosen?: number): number {
+    target.hand = shuffleArray(target.hand);
+    if (typeof chosen === 'number' && Number.isInteger(chosen) && chosen >= 0 && chosen < target.hand.length) return chosen;
+    return Math.floor(Math.random() * target.hand.length);
   }
 
   private isBushidoInPlay(): boolean {
@@ -1416,7 +1496,8 @@ export class GameEngine {
   private updateDecisionTimer() {
     const d = this.currentDecision();
     const player = d ? this.playersPrivate.get(d.playerId) : undefined;
-    const needsTimer = GameEngine.decisionTimersEnabled && !!d && !!player && !this.isBotControlled(player);
+    const timerOn = this.state.settings?.turnTimer !== 'off';
+    const needsTimer = GameEngine.decisionTimersEnabled && timerOn && !!d && !!player && !this.isBotControlled(player);
     const r = this.state.pendingReaction;
     const key = needsTimer
       ? `${d!.playerId}|${d!.kind}|${this.turnSerial}|${r ? `${r.type}:${r.sourcePlayerId}:${r.weaponCard?.id ?? ''}:${r.targetPlayerIds.length}` : ''}`
@@ -1429,7 +1510,8 @@ export class GameEngine {
     this.decisionDeadline = 0;
     if (!needsTimer) return;
 
-    const ms = DECISION_TIME_MS[d!.kind];
+    // Turno da 1 minuto se scelto dall'host, altrimenti la durata standard
+    const ms = d!.kind === 'play' && this.state.settings?.turnTimer === '60' ? 60_000 : DECISION_TIME_MS[d!.kind];
     this.decisionDeadline = Date.now() + ms;
     this.decisionTimer = setTimeout(() => {
       this.decisionTimer = null;

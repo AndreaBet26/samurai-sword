@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { getTableScale } from '../utils/tableLayout';
 import { CardDef } from '../../../shared/types';
 import { TabletopCard } from './TabletopCard';
 import { Shield, Trash2 } from 'lucide-react';
@@ -19,11 +21,17 @@ interface HandTrayProps {
   cards: CardDef[];
   isMyTurn: boolean;
   isUnderAttack?: boolean;
+  /** Tipo di richiesta in corso: serve a scrivere l'etichetta giusta sulle carte utilizzabili */
+  reactionType?: 'parry_weapon' | 'battle_cry' | 'jujutsu' | 'bushido' | null;
   eligibleReactionCardIds?: string[];
   isDiscardPhase?: boolean;
   selectedDiscardIds?: string[];
   selectedCardId?: string | null;
   onCardClick: (card: CardDef) => void;
+  /** Carte che adesso non si possono giocare (id -> motivo): restano in mano un po' più basse e spente */
+  blockedReasons?: Record<string, string>;
+  /** Passaggio del mouse su una carta (per mostrare il motivo al centro del tavolo) */
+  onHoverCard?: (card: CardDef | null) => void;
   /** Carta trascinata e lasciata sul tavolo (targetPlayerId se lasciata sopra un avversario) */
   onDropToTable?: (card: CardDef, targetPlayerId: string | null) => void;
   /** Inizio/fine trascinamento verso il tavolo (per evidenziare bersagli e zona di gioco) */
@@ -49,11 +57,14 @@ export const HandTray: React.FC<HandTrayProps> = ({
   cards,
   isMyTurn,
   isUnderAttack = false,
+  reactionType = null,
   eligibleReactionCardIds = [],
   isDiscardPhase = false,
   selectedDiscardIds = [],
   selectedCardId = null,
   onCardClick,
+  blockedReasons = {},
+  onHoverCard,
   onDropToTable,
   onDragToTableChange
 }) => {
@@ -259,12 +270,33 @@ export const HandTray: React.FC<HandTrayProps> = ({
               }}
               className="relative shrink-0"
               onPointerDown={e => onPointerDown(e, card)}
+              onMouseEnter={() => !drag?.active && onHoverCard?.(card)}
+              onMouseLeave={() => onHoverCard?.(null)}
               onDragStart={e => e.preventDefault()}
             >
               {isParryCandidate && (
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-emerald-300 font-black text-[11px] uppercase flex items-center gap-1 z-50 animate-bounce pointer-events-none whitespace-nowrap seat-label">
-                  <Shield className="w-3.5 h-3.5" />
-                  {card.type === 'weapon' ? 'Usa Arma' : 'Parata!'}
+                <div
+                  className={`absolute -top-5 left-1/2 -translate-x-1/2 font-black text-[11px] uppercase flex items-center gap-1 z-50 pointer-events-none whitespace-nowrap seat-label ${
+                    reactionType === 'jujutsu' || reactionType === 'bushido' ? 'text-amber-300' : 'text-emerald-300'
+                  }`}
+                >
+                  {reactionType === 'jujutsu' || reactionType === 'bushido' ? (
+                    // Jiujitsu e Bushido NON si parano: si scarta un'arma
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Scarta
+                    </>
+                  ) : card.type === 'weapon' ? (
+                    <>
+                      <Shield className="w-3.5 h-3.5" />
+                      Para con l'arma (Hanzō)
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="w-3.5 h-3.5" />
+                      Parata
+                    </>
+                  )}
                 </div>
               )}
               {isDiscardSelected && (
@@ -286,7 +318,9 @@ export const HandTray: React.FC<HandTrayProps> = ({
                           ? 'opacity-35 grayscale-[30%]'
                           : drag?.active
                             ? ''
-                            : 'hover:-translate-y-8 hover:scale-105'
+                            : blockedReasons[card.id]
+                              ? 'translate-y-4 brightness-[0.62] saturate-[0.55] hover:translate-y-1'
+                              : 'hover:-translate-y-8 hover:scale-105'
                 }`}
               >
                 <TabletopCard imageSrc={`/assets/cards/${card.templateId}.webp`} fallbackText={card.name} size="hand" isHoverable={false} />
@@ -296,14 +330,15 @@ export const HandTray: React.FC<HandTrayProps> = ({
         })}
       </div>
 
-      {/* Carta che segue il puntatore mentre la trascini */}
-      {drag?.active && (
+      {/* Carta che segue il puntatore mentre la trascini (fuori dalla scena scalata, in coordinate schermo) */}
+      {drag?.active &&
+        createPortal(
         <div
           className="fixed pointer-events-none z-[120]"
           style={{
             left: drag.x,
             top: drag.y,
-            transform: `translate(-50%, -60%) rotate(${drag.mode === 'play' ? -4 : 0}deg) scale(${drag.mode === 'play' ? 0.85 : 1})`,
+            transform: `translate(-50%, -60%) rotate(${drag.mode === 'play' ? -4 : 0}deg) scale(${(drag.mode === 'play' ? 0.85 : 1) * getTableScale()})`,
             transition: 'transform 150ms ease-out',
             filter:
               drag.mode === 'play'
@@ -317,7 +352,8 @@ export const HandTray: React.FC<HandTrayProps> = ({
               {drag.hoveredPlayerId ? 'Rilascia sul bersaglio' : 'Rilascia per giocare'}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

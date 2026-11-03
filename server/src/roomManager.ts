@@ -19,6 +19,11 @@ function str(value: unknown, maxLen: number): string {
   return typeof value === 'string' ? value.trim().slice(0, maxLen) : '';
 }
 
+/** Nome giocatore: niente caratteri che potrebbero essere interpretati come HTML */
+function playerName(value: unknown): string {
+  return str(value, 20).replace(/[<>&"'`]/g, '').trim();
+}
+
 export class RoomManager {
   private io: Server;
   private rooms: Map<string, GameEngine> = new Map();
@@ -70,7 +75,7 @@ export class RoomManager {
       });
       this.rooms.set(roomCode, engine);
 
-      engine.addPlayer(playerId, str(data.playerName, 20) || 'Giocatore 1', true, false);
+      engine.addPlayer(playerId, playerName(data.playerName) || 'Giocatore 1', true, false);
       this.bindSocket(socket, roomCode, playerId, true, false);
     });
 
@@ -91,7 +96,7 @@ export class RoomManager {
 
       this.leaveCurrent(socket);
       const playerId = `p_${uuidv4()}`;
-      const name = str(data.playerName, 20) || `Giocatore ${engine.state.players.length + 1}`;
+      const name = playerName(data.playerName) || `Giocatore ${engine.state.players.length + 1}`;
       const success = engine.addPlayer(playerId, name, false, false);
 
       if (!success) {
@@ -161,6 +166,47 @@ export class RoomManager {
       c.engine.addPlayer(botId, botName, false, true);
     });
 
+    // 3b. L'host toglie un giocatore (o un bot) dalla lobby
+    on('remove_player', data => {
+      const c = ctx();
+      if (!c || c.engine.state.status !== 'lobby') return;
+      const host = c.engine.getPlayerPrivate(c.playerId);
+      const targetId = str(data.playerId, 100);
+      if (!host?.isHost || !targetId || targetId === c.playerId) return;
+      if (!c.engine.getPlayerPrivate(targetId)) return;
+
+      // Avvisa il giocatore tolto e scollega il suo socket dalla stanza
+      for (const [sid, m] of this.socketToPlayer) {
+        if (m.playerId === targetId) {
+          const s2 = this.io.sockets.sockets.get(sid);
+          s2?.emit('kicked', { message: "L'host ti ha tolto dalla stanza." });
+          s2?.leave(c.roomCode);
+          this.socketToPlayer.delete(sid);
+        }
+      }
+      this.forgetSessionsOf(targetId);
+      this.clearGrace(targetId);
+      c.engine.removePlayer(targetId);
+    });
+
+    // 3c. Impostazioni della stanza (solo host, solo in lobby)
+    on('update_settings', data => {
+      const c = ctx();
+      if (!c) return;
+      const host = c.engine.getPlayerPrivate(c.playerId);
+      if (!host?.isHost) return;
+      c.engine.updateSettings({ turnTimer: data.turnTimer, animSpeed: data.animSpeed });
+    });
+
+    // 3d. Rivincita: l'host riporta tutti nella stessa stanza
+    on('rematch', () => {
+      const c = ctx();
+      if (!c) return;
+      const host = c.engine.getPlayerPrivate(c.playerId);
+      if (!host?.isHost) return;
+      c.engine.resetToLobby();
+    });
+
     // 4. Start Game
     on('start_game', () => {
       const c = ctx();
@@ -199,7 +245,8 @@ export class RoomManager {
         c.playerId,
         str(data.cardId, 100),
         str(data.targetPlayerId, 100) || undefined,
-        str(data.targetPropertyId, 100) || undefined
+        str(data.targetPropertyId, 100) || undefined,
+        typeof data.targetHandIndex === 'number' ? data.targetHandIndex : undefined
       );
     });
 
