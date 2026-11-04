@@ -907,11 +907,108 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         </div>
       </div>
 
-      {/* ===================== IL TUO POSTO ===================== */}
-      <div className="absolute bottom-0 left-0 right-0 px-8 pb-3 flex flex-col items-center select-none z-30">
+      {/* ===================== IL TUO PERSONAGGIO (IN BASSO A SINISTRA) ===================== */}
+      {myPrivateState && (
+        <div
+          id="table-player-mat"
+          className={`absolute bottom-3 left-4 sm:left-6 z-30 select-none flex flex-col items-start gap-1.5 ${
+            myPrivateState.currentHp <= 0 ? 'opponent-defeated' : isMyTurn ? 'seat-turn' : ''
+          }`}
+        >
+          {/* Nome giocatore e abilità */}
+          <div className="seat-label flex flex-col">
+            <div className={`font-title font-bold text-sm tracking-wide transition-colors duration-500 ${isMyTurn ? 'text-amber-300 seat-name-turn' : 'text-slate-100'}`}>
+              {myPrivateState.name}
+            </div>
+            {myPrivateState.character && (
+              <div
+                className="text-[10px] text-slate-300/80 italic max-w-[210px] truncate"
+                title={`${myPrivateState.character.name}: ${myPrivateState.character.abilityDescription}`}
+              >
+                {myPrivateState.character.name} · {myPrivateState.character.shortAbility}
+              </div>
+            )}
+          </div>
+
+          {/* Area carte + gettoni: Vita a sinistra, Carte sovrapposte al centro, Onore a destra */}
+          <div className="flex items-center gap-2">
+            {/* Gettoni Resistenza (Vita) */}
+            <div className="flex flex-col items-center">
+              <TokenPile
+                id={`tokens-hp-${myId}`}
+                kind="hp"
+                ledgerKey={`hp:${myId}`}
+                count={myPrivateState.currentHp}
+                seed={`hp-${myId}`}
+                size={24}
+                perRow={2}
+                title={`Resistenza: ${myPrivateState.currentHp} su ${myPrivateState.maxHp}`}
+              />
+              <span className="text-[10px] font-bold text-red-300 seat-label mt-0.5">
+                {myPrivateState.currentHp}/{myPrivateState.maxHp}
+              </span>
+            </div>
+
+            {/* Carte Personaggio + Ruolo sovrapposte */}
+            <div className="relative" style={{ width: 88 + 44, height: 125 }}>
+              {/* Ruolo sotto, sfalsato a destra */}
+              <div className="absolute" style={{ left: 44, top: 0, rotate: '4deg' }}>
+                <TabletopCard imageSrc={`/assets/roles/${myPrivateState.role.id}.webp`} fallbackText={myPrivateState.role.name} size="seat" />
+                {myPrivateState.role.id === 'shogun' && (
+                  <div className="absolute -top-2 -right-1 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow">
+                    <Crown className="w-3.5 h-3.5" />
+                  </div>
+                )}
+              </div>
+
+              {/* Personaggio sopra */}
+              <div
+                id={`character-card-${myId}`}
+                className="absolute cursor-pointer transition-transform"
+                style={{ left: 0, top: 0, rotate: '-2deg' }}
+                onClick={() => myPrivateState.character && setInspectCharacter(myPrivateState.character)}
+                title="Clicca per vedere l'abilità del personaggio"
+              >
+                <TabletopCard
+                  imageSrc={`/assets/characters/${myPrivateState.character?.id}.webp`}
+                  fallbackText={myPrivateState.character?.name || 'Personaggio'}
+                  size="seat"
+                />
+              </div>
+
+              {/* Taglio se a zero pf */}
+              {myPrivateState.currentHp <= 0 && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
+                  <span className="font-jp text-6xl text-red-600/85 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)] animate-fadeIn">斬</span>
+                </div>
+              )}
+            </div>
+
+            {/* Gettoni Onore */}
+            <div className="flex flex-col items-center">
+              <TokenPile
+                id={`tokens-honor-${myId}`}
+                kind="honor"
+                ledgerKey={`honor:${myId}`}
+                count={myPrivateState.honorPoints}
+                seed={`honor-${myId}`}
+                size={24}
+                perRow={2}
+                title={`Punti Onore: ${myPrivateState.honorPoints}`}
+              />
+              <span className="text-[10px] font-bold text-purple-300 seat-label mt-0.5">
+                {myPrivateState.honorPoints} Onore
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================== CENTRO IN BASSO: PROPRIETÀ E MANO ===================== */}
+      <div className="absolute bottom-0 left-0 right-0 pb-3 flex flex-col items-center select-none z-20 pointer-events-none">
         {/* LE TUE CARTE GIOCATE: più avanti, verso il centro del tavolo */}
         {myPrivateState && (
-          <div className="w-full flex justify-center mb-2">
+          <div className="w-full flex justify-center mb-2 pointer-events-auto">
             <PlayerField
               properties={myPrivateState.propertiesInPlay}
               onInspectCard={card => setPreviewCard(card)}
@@ -920,80 +1017,8 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           </div>
         )}
 
-        {/* IL TUO PERSONAGGIO: come gli avversari, ruolo sotto e gettoni ai lati */}
-        {myPrivateState && (
-          <div className="flex justify-center mb-1">
-           <div className="relative">
-            {/* Nome e abilità, a sinistra delle carte */}
-            <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 text-right whitespace-nowrap seat-label pointer-events-none">
-              <div className={`font-title font-bold text-sm transition-colors duration-500 ${isMyTurn ? 'text-amber-300 seat-name-turn' : 'text-slate-100'}`}>
-                {myPrivateState.name}
-              </div>
-              {myPrivateState.character && (
-                <div className="text-[11px] text-slate-300/80 italic mt-0.5">
-                  {myPrivateState.character.name} · {myPrivateState.character.shortAbility}
-                </div>
-              )}
-            </div>
-
-            <div
-              id="table-player-mat"
-              className={`flex items-center gap-2 ${myPrivateState.currentHp <= 0 ? 'opponent-defeated' : isMyTurn ? 'seat-turn' : ''}`}
-            >
-              <TokenPile
-                id={`tokens-hp-${myId}`}
-                kind="hp"
-                ledgerKey={`hp:${myId}`}
-                count={myPrivateState.currentHp}
-                seed={`hp-${myId}`}
-                size={26}
-                perRow={2}
-                title={`Resistenza: ${myPrivateState.currentHp} su ${myPrivateState.maxHp}`}
-              />
-              <div className="relative" style={{ width: 104 + 52, height: 148 }}>
-                <div className="absolute" style={{ left: 52, top: 0, rotate: '4deg' }}>
-                  <TabletopCard imageSrc={`/assets/roles/${myPrivateState.role.id}.webp`} fallbackText={myPrivateState.role.name} size="md" />
-                  {myPrivateState.role.id === 'shogun' && (
-                    <div className="absolute -top-2 -right-1 bg-amber-500 text-slate-950 p-0.5 rounded-full shadow">
-                      <Crown className="w-3.5 h-3.5" />
-                    </div>
-                  )}
-                </div>
-                <div
-                  className="absolute cursor-pointer"
-                  style={{ left: 0, top: 0, rotate: '-2deg' }}
-                  onClick={() => myPrivateState.character && setInspectCharacter(myPrivateState.character)}
-                  title="Clicca per vedere l'abilità del personaggio"
-                >
-                  <TabletopCard
-                    imageSrc={`/assets/characters/${myPrivateState.character?.id}.webp`}
-                    fallbackText={myPrivateState.character?.name || 'Personaggio'}
-                    size="md"
-                  />
-                </div>
-                {myPrivateState.currentHp <= 0 && (
-                  <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
-                    <span className="font-jp text-6xl text-red-600/85 drop-shadow-[0_0_12px_rgba(220,38,38,0.8)] animate-fadeIn">斬</span>
-                  </div>
-                )}
-              </div>
-              <TokenPile
-                id={`tokens-honor-${myId}`}
-                kind="honor"
-                ledgerKey={`honor:${myId}`}
-                count={myPrivateState.honorPoints}
-                seed={`honor-${myId}`}
-                size={26}
-                perRow={2}
-                title={`Punti Onore: ${myPrivateState.honorPoints}`}
-              />
-            </div>
-           </div>
-          </div>
-        )}
-
         {/* LA TUA MANO: in basso, grande, a ventaglio e trascinabile */}
-        <div className="relative w-full flex justify-center">
+        <div className="relative w-full flex justify-center pointer-events-auto">
           {myPrivateState && (
             <HandTray
               cards={visibleCardsForTray}

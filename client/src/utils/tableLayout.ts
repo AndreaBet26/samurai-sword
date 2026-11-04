@@ -6,7 +6,7 @@
  *
  * Tu sei sempre in basso al centro. Gli altri si siedono attorno al tavolo, in senso orario
  * a partire dalla tua sinistra:
- *   - ai lati: posti ruotati di 90°, con le carte rivolte verso il centro
+ *   - ai lati: posti ruotati di 90°, vicini ai bordi dello schermo, con le carte rivolte verso il centro
  *   - in alto (di fronte e in diagonale): posti dritti, uno accanto all'altro
  * Ogni posto è una colonna che va dal bordo del tavolo verso il centro:
  *   personaggio + ruolo + gettoni  →  carte in mano (coperte)  →  carte giocate
@@ -32,8 +32,9 @@ export interface SeatGeometry {
 
 type Slot = { x: number; y: number; side: 'left' | 'top' | 'right' };
 
-const LEFT_X = 225;
-const RIGHT_X = STAGE_W - LEFT_X;
+// I giocatori a sinistra e a destra sono posizionati vicino ai bordi dello schermo per liberare spazio al centro
+const LEFT_X = 135;
+const RIGHT_X = STAGE_W - LEFT_X; // 1785
 const TOP_Y = 205;
 
 /** Posti degli avversari in ordine di turno (il primo è alla tua sinistra) */
@@ -55,8 +56,8 @@ function slots(count: number): Slot[] {
     case 5:
       return [...left([470]), ...top([560, 960, 1360]), ...right([470])];
     default:
-      // 6 avversari (7 giocatori): due per lato e due di fronte
-      return [...left([610, 320]), ...top([700, 1220]), ...right([320, 610])];
+      // 6 avversari (7 giocatori): due per lato ben distanziati lungo i bordi e due di fronte
+      return [...left([630, 310]), ...top([700, 1220]), ...right([310, 630])];
   }
 }
 

@@ -118,7 +118,8 @@ export const OpponentTableArea: React.FC<OpponentTableAreaProps> = ({
         </div>
         {/* Personaggio sopra */}
         <div
-          className="absolute cursor-pointer"
+          id={`character-card-${player.id}`}
+          className="absolute cursor-pointer transition-transform"
           style={{ left: 0, top: 0, rotate: '-2deg' }}
           onMouseEnter={() => setShowAbility(true)}
           onMouseLeave={() => setShowAbility(false)}

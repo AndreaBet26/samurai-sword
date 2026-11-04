@@ -430,22 +430,29 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           const p = centerOf(el);
           const lethal = ev.hpLeft <= 0;
           const self = ev.sourceId === ev.targetId; // Nobunaga
+
+          // Layer rosso momentaneo sulla carta personaggio colpita
+          const charCard = document.getElementById(`character-card-${ev.targetId}`);
+          if (charCard) {
+            charCard.classList.remove('card-wound-flash');
+            void charCard.offsetWidth; // trigger reflow per riavviare l'animazione del layer rosso
+            charCard.classList.add('card-wound-flash');
+            window.setTimeout(() => charCard.classList.remove('card-wound-flash'), 800);
+          }
+
           if (ev.weapon) {
             slashAt(p);
-            burst(p, ['#dc2626', '#991b1b', '#f87171'], 26 + ev.amount * 14, { spread: 80, startVelocity: 32 });
+            burst(p, ['#dc2626', '#991b1b', '#f87171'], 20 + ev.amount * 10, { spread: 80, startVelocity: 30 });
           } else if (!self) {
-            burst(p, ['#f97316', '#fbbf24'], 18, { spread: 60 });
+            burst(p, ['#f97316', '#fbbf24'], 16, { spread: 60 });
           }
-          shake(el, 6 + ev.amount * 3 + (lethal ? 6 : 0), lethal ? 600 : 420);
-          glow(el, lethal ? 'rgba(220,38,38,0.95)' : 'rgba(220,38,38,0.7)', 700);
-          floatText(p, `−${ev.amount} ❤`, lethal ? '#ff1f1f' : ev.weapon ? '#f87171' : '#fb923c', lethal ? 52 : 34 + ev.amount * 4, {
+          shake(charCard || el, 6 + ev.amount * 3 + (lethal ? 6 : 0), lethal ? 600 : 420);
+          glow(charCard || el, lethal ? 'rgba(220,38,38,0.95)' : 'rgba(220,38,38,0.7)', 700);
+          floatText(p, `−${ev.amount} ❤`, lethal ? '#ff1f1f' : ev.weapon ? '#f87171' : '#fb923c', lethal ? 46 : 30 + ev.amount * 4, {
             glow: '#7f1d1d',
-            duration: lethal ? 1600 : 1300
+            duration: lethal ? 1500 : 1200
           });
-          if (ev.targetId === myId && !self) {
-            screenFlash(lethal ? 'rgba(220,38,38,0.85)' : 'rgba(220,38,38,0.55)');
-            shake(document.getElementById('table-root'), lethal ? 10 : 5, 380);
-          }
+
           if (!hurried) soundManager.play(ev.weapon ? 'swordHit' : 'damage');
           // I gettoni Vita persi vengono buttati nella riserva al centro del tavolo
           const fromHp = hpPoint(ev.targetId);
@@ -502,22 +509,27 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
 
         case 'defeat': {
           const el = anchorEl(ev.targetId);
+          const charCard = document.getElementById(`character-card-${ev.targetId}`);
+          if (charCard) {
+            charCard.classList.remove('card-wound-flash');
+            void charCard.offsetWidth;
+            charCard.classList.add('card-wound-flash');
+            window.setTimeout(() => charCard.classList.remove('card-wound-flash'), 1000);
+          }
           const isMe = ev.targetId === myId;
-          cinematicBanner(
-            '斬',
-            isMe ? 'SEI STATO ABBATTUTO' : 'ABBATTUTO!',
-            `${nameOf(ev.targetId)} cade per mano di ${nameOf(ev.attackerId)}`,
-            '#dc2626',
-            hurried ? 900 : 1600
-          );
+          const p = centerOf(charCard || el);
+          floatText(p, isMe ? '💀 SEI STATO ABBATTUTO!' : `💀 ${nameOf(ev.targetId)} ABBATTUTO!`, '#ef4444', 30, {
+            glow: '#7f1d1d',
+            duration: hurried ? 1500 : 2200,
+            rise: 55
+          });
           if (!reduced()) {
             el?.animate(
               [{ filter: 'grayscale(0) brightness(1)' }, { filter: 'grayscale(1) brightness(0.6)', offset: 0.3 }, { filter: 'grayscale(0.7) brightness(0.8)' }],
               { duration: 1500, easing: 'ease-out' }
             );
-            shake(document.getElementById('table-root'), 12, 500);
           }
-          burst(centerOf(el), ['#7f1d1d', '#dc2626', '#000000'], 70, { spread: 160, startVelocity: 40 });
+          burst(p, ['#7f1d1d', '#dc2626', '#000000'], 50, { spread: 140, startVelocity: 35 });
           if (!hurried) soundManager.play('defeat');
           break;
         }
