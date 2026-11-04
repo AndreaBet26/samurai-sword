@@ -23,8 +23,7 @@ import {
   Volume2,
   VolumeX,
   ArrowRight,
-  Flame,
-  X,
+  AlertTriangle,
   Crown,
   Sparkles,
   ShieldAlert,
@@ -418,8 +417,15 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     setPendingDeckDraw({ type: 'nobunaga', count: 1 });
   };
 
-  // INTERACTIVE DECK DRAW: Click the deck to draw cards into your hand!
+  // INTERACTIVE DECK DRAW: Click or drag the deck to draw cards into your hand!
   const handleDeckClick = () => {
+    // 0. Regular Turn Draw phase: player draws cards into hand
+    if (isMyTurn && gameState.turnPhase === 'draw') {
+      soundManager.playCardSlide();
+      socket.emit('draw_cards');
+      return;
+    }
+
     // 1. Nobunaga manual draw
     if (pendingDeckDraw?.type === 'nobunaga') {
       soundManager.playCardSlide();
@@ -512,7 +518,7 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
     const kojiro = myPlayer.character?.id === 'kojiro';
     if (kojiro || reach >= diff) {
       const dmg = calculateAttackDamage(myPlayer, target, aimingCard);
-      return { ok: true, text: `colpito: −${dmg} ❤` };
+      return { ok: true, text: `colpito: −${dmg} ferite` };
     }
     const parts = [`distanza ${dist}`];
     if (armor) parts.push(`armatura ${armor}`);
@@ -613,14 +619,16 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   const isPreviewInMyHand = Boolean(myPrivateState?.hand.some(c => c.id === previewCard?.id));
   let canPlayPreviewCard = false;
   let playButtonLabel = 'Gioca Carta';
-  let playButtonIcon = '🎴';
+  let playButtonIcon: React.ReactNode = <img src="/assets/icons/cards_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />;
 
   if (previewCard && isPreviewInMyHand) {
     if (isUnderAttack) {
       if (eligibleReactionCardIds.includes(previewCard.id)) {
         canPlayPreviewCard = true;
         playButtonLabel = 'Usa per Parare';
-        playButtonIcon = '🛡️';
+        playButtonIcon = reaction?.type === 'jujutsu'
+          ? <img src="/assets/icons/crossed_swords_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />
+          : <img src="/assets/icons/shield_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />;
       }
     } else if (isPlayPhase) {
       if (previewCard.type === 'weapon') {
@@ -629,16 +637,16 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         if (weaponsPlayed < maxWeapons) {
           canPlayPreviewCard = true;
           playButtonLabel = 'Scegli Bersaglio';
-          playButtonIcon = '⚔️';
+          playButtonIcon = <img src="/assets/icons/sword_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />;
         }
       } else if (previewCard.type === 'property') {
         canPlayPreviewCard = true;
         playButtonLabel = previewCard.propertyType === 'bushido' ? 'Piazza Bushido' : 'Equipaggia Terreno';
-        playButtonIcon = '🛡️';
+        playButtonIcon = <img src="/assets/icons/shield_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />;
       } else if (previewCard.type === 'action') {
         canPlayPreviewCard = true;
         playButtonLabel = 'Attiva Azione';
-        playButtonIcon = '⚡';
+        playButtonIcon = <img src="/assets/icons/sword_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />;
       }
     }
   }
@@ -657,7 +665,8 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
   // Deck glows when a draw is pending or ready
   const isDeckReadyToDraw = Boolean(
     pendingDeckDraw ||
-    isIeyasuDrawPhase
+    isIeyasuDrawPhase ||
+    (isMyTurn && gameState.turnPhase === 'draw')
   );
 
   // Recent logs
@@ -789,19 +798,39 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           <div
             id="table-deck-pile"
             onClick={handleDeckClick}
-            className={`relative transition-transform duration-300 cursor-pointer ${isDeckReadyToDraw ? 'scale-105 seat-turn' : 'hover:scale-105'}`}
-            title={`Mazzo: ${gameState.deckCount} carte`}
+            draggable={isDeckReadyToDraw}
+            onDragStart={(e) => {
+              if (isDeckReadyToDraw) {
+                e.dataTransfer.setData('text/plain', 'deck_draw');
+                e.dataTransfer.effectAllowed = 'copyMove';
+              }
+            }}
+            className={`relative transition-all duration-300 cursor-pointer ${
+              isDeckReadyToDraw ? 'scale-110 ring-4 ring-amber-400/90 shadow-[0_0_30px_rgba(245,158,11,0.7)] animate-pulse' : 'hover:scale-105'
+            }`}
+            title={
+              isDeckReadyToDraw
+                ? 'Clicca o trascina il mazzo nella tua mano per pescare!'
+                : `Mazzo: ${gameState.deckCount} carte`
+            }
           >
+            {isDeckReadyToDraw && (
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-amber-500 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full shadow-lg border border-amber-300 flex items-center gap-1.5 z-30 animate-bounce">
+                <img src="/assets/icons/cards_white.webp" alt="" className="w-3.5 h-3.5 object-contain invert" />
+                <span>PESCA DAL MAZZO</span>
+              </div>
+            )}
             <TabletopCard imageSrc="/assets/ui/card_back.webp" fallbackText="Mazzo" size="md" />
             <span className={`absolute bottom-1 right-1.5 font-black text-sm seat-label ${gameState.deckCount <= 8 ? 'text-red-300 animate-pulse' : 'text-amber-200'}`}>
               {gameState.deckCount}
             </span>
             {gameState.status === 'playing' && gameState.deckCount <= 8 && (
               <span
-                className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-red-300 seat-label"
+                className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-red-300 seat-label flex items-center gap-1"
                 title="Quando il mazzo finisce, gli scarti vengono rimescolati e tutti perdono 1 Punto Onore"
               >
-                ⚠️ Mazzo quasi finito: −1 Onore a tutti
+                <AlertTriangle className="w-3 h-3 text-red-400 inline-block" />
+                Mazzo quasi finito: −1 Onore a tutti
               </span>
             )}
           </div>
@@ -843,30 +872,73 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
           )}
         </div>
 
-        {/* Richieste per te (difesa, bersaglio, scarto): al centro del tavolo, dove guardi */}
-        <div className="mt-3 flex flex-col items-center">
+        {/* Richieste per te (difesa, bersaglio, scarto, pesca): al centro del tavolo, dove guardi */}
+        <div className="mt-3 flex flex-col items-center gap-2">
+        {/* Fase di pesca: clicca o trascina il mazzo */}
+        {isMyTurn && gameState.turnPhase === 'draw' && (
+          <div className="flex items-center justify-center gap-2 animate-fadeIn bg-black/70 px-4 py-1.5 rounded-full border border-amber-400/80 shadow-lg">
+            <img src="/assets/icons/cards_white.webp" alt="" className="w-4 h-4 object-contain animate-bounce" />
+            <span className="text-xs font-bold text-amber-200 seat-label">
+              Fase di Pesca: <strong className="text-amber-300">pesca le tue carte dal mazzo</strong> (clicca o trascina)
+            </span>
+          </div>
+        )}
+
+        {/* Nobunaga pesca in sospeso */}
+        {pendingDeckDraw?.type === 'nobunaga' && (
+          <div className="flex items-center justify-center gap-2 animate-fadeIn bg-orange-950/85 px-4 py-1.5 rounded-full border border-orange-400/80 shadow-lg">
+            <img src="/assets/icons/cards_white.webp" alt="" className="w-4 h-4 object-contain animate-bounce" />
+            <span className="text-xs font-bold text-orange-200 seat-label">
+              Abilità Nobunaga: <strong className="text-amber-300">clicca il mazzo</strong> per pescare sacrificando 1 Resistenza
+            </span>
+          </div>
+        )}
+
         {/* Difesa: scegli una carta o subisci */}
         {isUnderAttack && reaction && (
           <div className="flex items-center justify-center gap-3 animate-fadeIn">
             <span className="text-sm font-bold text-red-200 flex items-center gap-1.5 seat-label">
               <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
               {reaction.type === 'bushido' ? (
-                <>🏯 <strong className="text-amber-300">Bushido!</strong> È uscita un'Arma: scarta un'<strong className="text-amber-300">Arma</strong> oppure perdi 1 Onore</>
+                <>
+                  <img src="/assets/icons/crossed_swords_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />
+                  <strong className="text-amber-300">Bushido!</strong> È uscita un'Arma: scarta un'<strong className="text-amber-300">Arma</strong> oppure perdi 1 Onore
+                </>
               ) : reaction.type === 'battle_cry' ? (
-                <>📢 <strong className="text-amber-300">Grido di Battaglia!</strong> Gioca una <strong className="text-emerald-300">Parata</strong> per difenderti</>
+                <>
+                  <img src="/assets/icons/shield_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />
+                  <strong className="text-amber-300">Grido di Battaglia!</strong> Gioca una <strong className="text-emerald-300">Parata</strong> per difenderti
+                </>
               ) : reaction.type === 'jujutsu' ? (
-                <>🥋 <strong className="text-amber-300">Jiujitsu!</strong> Scarta un'<strong className="text-amber-300">Arma</strong> per neutralizzarlo</>
+                <>
+                  <img src="/assets/icons/crossed_swords_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />
+                  <strong className="text-amber-300">Jiujitsu!</strong> Scarta un'<strong className="text-amber-300">Arma</strong> per neutralizzarlo
+                </>
               ) : (
-                <>⚔️ Attacco con <strong className="text-amber-300">{reaction.weaponCard?.name || "un'Arma"}</strong> (−{reaction.damage || 1} ❤️)</>
+                <span className="flex items-center gap-1">
+                  <img src="/assets/icons/sword_white.webp" alt="" className="w-4 h-4 object-contain inline-block" />
+                  Attacco con <strong className="text-amber-300">{reaction.weaponCard?.name || "un'Arma"}</strong> (−{reaction.damage || 1}
+                  <img src="/assets/ui/resilience_token.webp" alt="" className="w-3.5 h-3.5 object-contain inline-block ml-0.5" />)
+                </span>
               )}
             </span>
             <button
               onClick={() => handleReaction(null)}
-              className="bg-red-800 hover:bg-red-700 text-white font-black text-xs px-3.5 py-1 rounded-full border border-red-400 shadow flex items-center gap-1 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+              className="bg-red-800 hover:bg-red-700 text-white font-black text-xs px-3.5 py-1.5 rounded-full border border-red-400 shadow flex items-center gap-1.5 cursor-pointer transition-transform hover:scale-105 active:scale-95"
               title={reaction.type === 'bushido' ? 'Perdi 1 Punto Onore' : 'Subisci il colpo e perdi punti vita'}
             >
               <HeartCrack className="w-3.5 h-3.5 text-red-200" />
-              <span>{reaction.type === 'bushido' ? 'Perdi 1 Onore 🪷' : `Subisci (−${reaction.damage || 1} ❤️)`}</span>
+              {reaction.type === 'bushido' ? (
+                <span className="flex items-center gap-1">
+                  Perdi 1 Onore
+                  <img src="/assets/ui/honor_token.webp" alt="" className="w-3.5 h-3.5 object-contain inline-block" />
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  Subisci (−{reaction.damage || 1}
+                  <img src="/assets/ui/resilience_token.webp" alt="" className="w-3.5 h-3.5 object-contain inline-block" />)
+                </span>
+              )}
             </button>
           </div>
         )}
@@ -874,13 +946,13 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         {/* Scelta del bersaglio in corso */}
         {activePlayCard && !isUnderAttack && (
           <div className="flex items-center justify-center gap-3">
-            <span className="text-xs font-bold text-amber-200 seat-label">Scegli il bersaglio per {activePlayCard.name}</span>
             <button
               onClick={() => setActivePlayCard(null)}
-              className="text-xs font-bold text-slate-200 hover:text-white bg-black/70 hover:bg-black px-3 py-1 rounded-full border border-slate-600 flex items-center gap-1.5 cursor-pointer shadow transition-all"
+              className="text-xs font-bold text-amber-200 hover:text-white bg-black/70 hover:bg-black/90 px-4 py-1.5 rounded-full border border-amber-500/50 flex items-center gap-2 cursor-pointer shadow transition-all hover:scale-102"
+              title="Clicca per deselezionare"
             >
-              <X className="w-3.5 h-3.5 text-amber-400" />
-              Annulla
+              <img src="/assets/icons/sword_white.webp" alt="" className="w-3.5 h-3.5 object-contain" />
+              <span>Scegli il bersaglio per {activePlayCard.name} (clicca per deselezionare)</span>
             </button>
           </div>
         )}
@@ -911,6 +983,18 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       {myPrivateState && (
         <div
           id="table-player-mat"
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('text/plain')) {
+              e.preventDefault();
+            }
+          }}
+          onDrop={(e) => {
+            const data = e.dataTransfer.getData('text/plain');
+            if (data === 'deck_draw' && isDeckReadyToDraw) {
+              e.preventDefault();
+              handleDeckClick();
+            }
+          }}
           className={`absolute bottom-3 left-4 sm:left-6 z-30 select-none flex flex-col items-start gap-1.5 ${
             myPrivateState.currentHp <= 0 ? 'opponent-defeated' : isMyTurn ? 'seat-turn' : ''
           }`}
@@ -922,10 +1006,23 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
             </div>
             {myPrivateState.character && (
               <div
-                className="text-[10px] text-slate-300/80 italic max-w-[210px] truncate"
+                className="relative group text-[10px] text-slate-300/80 italic max-w-[210px] truncate"
                 title={`${myPrivateState.character.name}: ${myPrivateState.character.abilityDescription}`}
               >
-                {myPrivateState.character.name} · {myPrivateState.character.shortAbility}
+                <span>{myPrivateState.character.name} · {myPrivateState.character.shortAbility}</span>
+                {myPrivateState.character.id === 'nobunaga' && isPlayPhase && myPrivateState.currentHp > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNobunagaAbilityClick();
+                    }}
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-amber-500/35 border border-amber-400 rounded px-1.5 py-0.5 text-[9px] not-italic font-bold text-amber-100 backdrop-blur-xs flex items-center justify-center gap-1 transition-opacity cursor-pointer shadow-md"
+                    title="Usa abilità: Sacrifica 1 Resistenza per pescare 1 carta"
+                  >
+                    <img src="/assets/icons/cards_white.webp" alt="" className="w-3 h-3 object-contain inline-block" />
+                    <span>Attiva abilità</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1018,7 +1115,21 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
         )}
 
         {/* LA TUA MANO: in basso, grande, a ventaglio e trascinabile */}
-        <div className="relative w-full flex justify-center pointer-events-auto">
+        <div
+          className="relative w-full flex justify-center pointer-events-auto"
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('text/plain')) {
+              e.preventDefault();
+            }
+          }}
+          onDrop={(e) => {
+            const data = e.dataTransfer.getData('text/plain');
+            if (data === 'deck_draw' && isDeckReadyToDraw) {
+              e.preventDefault();
+              handleDeckClick();
+            }
+          }}
+        >
           {myPrivateState && (
             <HandTray
               cards={visibleCardsForTray}
@@ -1048,17 +1159,6 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
               </span>
             )}
 
-            {myPrivateState?.character?.id === 'nobunaga' && isPlayPhase && (
-              <button
-                onClick={handleNobunagaAbilityClick}
-                disabled={myPrivateState.currentHp <= 1}
-                className="py-2 px-4 rounded-xl bg-orange-950/90 hover:bg-orange-900 border border-orange-500 text-orange-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shadow-lg hover:scale-105"
-              >
-                <Flame className="w-4 h-4 text-orange-400" />
-                Sacrifica 1 Vita per pescare
-              </button>
-            )}
-
             {isPlayPhase && (
               <button
                 onClick={handleEndPlayPhase}
@@ -1074,28 +1174,34 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       </div>
       {/* fine SCENA */}
 
-      {/* FLOATING CARD PREVIEW (NO SCHEDE: VISUALIZZA LA CARTA FISICA INGRANDITA + PULSANTI GIOCA / ANNULLA) */}
+      {/* FLOATING CARD PREVIEW (NO SCHEDE: VISUALIZZA LA CARTA FISICA INGRANDITA + PULSANTE GIOCA) */}
       {previewCard && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs select-none animate-fadeIn pointer-events-auto"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/65 backdrop-blur-xs select-none animate-fadeIn pointer-events-auto cursor-pointer"
           onClick={() => setPreviewCard(null)}
+          title="Clicca ovunque per chiudere l'anteprima"
         >
           <div
-            className="flex flex-col items-center gap-4"
+            className="flex flex-col items-center gap-4 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Visualizzazione ingrandita ad alta risoluzione della carta stessa (310x440px) */}
-            <div className="rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border-2 border-amber-500/80 transform hover:scale-102 transition-transform">
+            <div
+              onClick={() => setPreviewCard(null)}
+              className="rounded-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] border-2 border-amber-500/80 transform hover:scale-102 transition-transform cursor-pointer"
+              title="Clicca per chiudere"
+            >
               <TabletopCard
                 imageSrc={`/assets/cards/${previewCard.templateId}.webp`}
                 fallbackText={previewCard.name}
                 size="zoom"
+                isHoverable={false}
               />
             </div>
 
             {/* Pulsanti d'azione diretti sotto la carta */}
-            <div className="flex items-center gap-3">
-              {canPlayPreviewCard ? (
+            {canPlayPreviewCard && (
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => handleConfirmPlay(previewCard)}
                   className="py-2.5 px-6 rounded-xl font-title font-black text-sm uppercase tracking-wider bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-500 hover:brightness-110 active:scale-95 text-slate-950 shadow-xl shadow-emerald-500/35 border border-emerald-300 cursor-pointer flex items-center gap-2 transition-all"
@@ -1103,21 +1209,13 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
                   <span>{playButtonIcon}</span>
                   <span>{playButtonLabel}</span>
                 </button>
-              ) : (
-                isPreviewInMyHand && (
-                  <div className="py-2 px-4 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-400 font-semibold">
-                    Non giocabile in questo momento
-                  </div>
-                )
-              )}
-
-              <button
-                onClick={() => setPreviewCard(null)}
-                className="py-2.5 px-5 rounded-xl font-title font-bold text-sm bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-600 cursor-pointer transition-colors"
-              >
-                Annulla
-              </button>
-            </div>
+              </div>
+            )}
+            {!canPlayPreviewCard && isPreviewInMyHand && (
+              <div className="py-1.5 px-3.5 rounded-full bg-slate-900/90 border border-slate-700 text-xs text-slate-400 font-semibold">
+                Non giocabile in questo momento (clicca ovunque per chiudere)
+              </div>
+            )}
           </div>
         </div>
       )}

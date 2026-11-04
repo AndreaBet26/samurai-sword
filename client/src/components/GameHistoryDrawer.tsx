@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GameLogEntry, PlayerPublicState, CardDef } from '../../../shared/types';
 import { CARD_TEMPLATES } from '../../../shared/cardsData';
-import { History, X, Sword, Shield, Sparkles, Heart, Crown, Filter } from 'lucide-react';
+import { History, Sword, Shield, Sparkles, Heart, Crown, Filter } from 'lucide-react';
 
 interface GameHistoryDrawerProps {
   isOpen: boolean;
@@ -86,10 +86,10 @@ export const GameHistoryDrawer: React.FC<GameHistoryDrawerProps> = ({
 
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
             title="Chiudi"
           >
-            <X className="w-4 h-4" />
+            Chiudi
           </button>
         </div>
 
@@ -149,19 +149,19 @@ export const GameHistoryDrawer: React.FC<GameHistoryDrawerProps> = ({
               let badgeLabel = 'Info';
               if (log.type === 'attack') {
                 badgeColor = 'bg-red-950/80 text-red-300 border-red-700';
-                badgeLabel = '⚔️ Attacco';
+                badgeLabel = 'Attacco';
               } else if (log.type === 'defeat') {
                 badgeColor = 'bg-rose-950 text-rose-300 border-rose-600';
-                badgeLabel = '💀 Sconfitto';
+                badgeLabel = 'Sconfitto';
               } else if (log.type === 'damage') {
                 badgeColor = 'bg-amber-950/90 text-amber-300 border-amber-600';
-                badgeLabel = '🩸 Ferita';
+                badgeLabel = 'Ferita';
               } else if (log.type === 'heal') {
                 badgeColor = 'bg-emerald-950/80 text-emerald-300 border-emerald-700';
                 badgeLabel = '✨ Cura';
               } else if (log.type === 'action' || (log.type as string) === 'play') {
                 badgeColor = 'bg-blue-950/80 text-blue-300 border-blue-700';
-                badgeLabel = '🎴 Giocata';
+                badgeLabel = 'Giocata';
               }
 
               return (
@@ -195,7 +195,7 @@ export const GameHistoryDrawer: React.FC<GameHistoryDrawerProps> = ({
                     </div>
                   ) : (
                     <div className="w-12 h-17 shrink-0 rounded-md border border-slate-800 bg-slate-900/60 flex items-center justify-center text-slate-600 text-lg">
-                      📜
+                      <History className="w-5 h-5 text-slate-500" />
                     </div>
                   )}
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { PlayerPublicState, RoomSettings } from '../../../shared/types';
-import { Sword, Users, Bot, Copy, Check, Play, BookOpen, Link2, X } from 'lucide-react';
+import { Sword, Users, Bot, Copy, Check, Play, BookOpen, Link2, Trash2 } from 'lucide-react';
 
 const NAME_KEY = 'samurai-sword-nome';
 
@@ -251,7 +251,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer p-0.5"
                           title={`Togli ${p.name} dalla stanza`}
                         >
-                          <X className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>

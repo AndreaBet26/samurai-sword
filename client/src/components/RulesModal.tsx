@@ -13,12 +13,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl relative">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        
 
         <div className="flex items-center gap-2 mb-4">
           <BookOpen className="w-6 h-6 text-amber-400" />
@@ -73,7 +68,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ onClose }) => {
                   Nessuna Eliminazione dei Giocatori
                 </h3>
                 <p className="leading-relaxed">
-                  In Samurai Sword non vieni mai eliminato! Quando esaurisci i tuoi punti Resistenza (PV), cedi <strong>1 Punto Onore (🪷)</strong> al giocatore che ti ha inflitto il colpo di grazia, mantieni tutte le tue carte in mano e le Proprietà davanti a te, e diventi <strong>Inoffensivo</strong> fino al tuo prossimo turno. All’inizio del tuo turno, recuperi tutta la Resistenza al massimo e peschi normalmente!
+                  In Samurai Sword non vieni mai eliminato! Quando esaurisci i tuoi punti Resistenza (PV), cedi <strong>1 Punto Onore (Sakura)</strong> al giocatore che ti ha inflitto il colpo di grazia, mantieni tutte le tue carte in mano e le Proprietà davanti a te, e diventi <strong>Inoffensivo</strong> fino al tuo prossimo turno. All’inizio del tuo turno, recuperi tutta la Resistenza al massimo e peschi normalmente!
                 </p>
               </section>
 

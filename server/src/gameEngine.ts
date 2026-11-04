@@ -566,7 +566,12 @@ export class GameEngine {
       return;
     }
 
-    this.executeStandardDraw(player);
+    // Se manualDraw e attivo ed e un umano, si attende che clicchi o trascini dal mazzo; altrimenti pesca subito
+    if (this.manualDraw && !this.isBotControlled(player)) {
+      this.notifyStateChange();
+    } else {
+      this.executeStandardDraw(player);
+    }
   }
 
   public drawForIeyasu(playerId: string, fromDiscard: boolean) {
@@ -614,6 +619,13 @@ export class GameEngine {
       if (this.state.status !== 'playing' || this.state.turnPlayerId !== player.id) return;
       this.finishDrawPhase(player);
     }, 1400);
+  }
+
+  public drawCardsFromDeck(playerId: string): boolean {
+    const player = this.playersPrivate.get(playerId);
+    if (!player || this.state.turnPlayerId !== playerId || this.state.turnPhase !== 'draw') return false;
+    this.executeStandardDraw(player);
+    return true;
   }
 
   private finishDrawPhase(player: PlayerPrivateState) {
@@ -1489,7 +1501,7 @@ export class GameEngine {
     const id = this.state.turnPlayerId;
     if (phase === 'play') return { playerId: id, kind: 'play' };
     if (phase === 'discard') return { playerId: id, kind: 'discard' };
-    if (phase === 'draw' && this.playersPrivate.get(id)?.character?.id === 'ieyasu') return { playerId: id, kind: 'draw' };
+    if (phase === 'draw') return { playerId: id, kind: 'draw' };
     return null;
   }
 
@@ -1534,7 +1546,10 @@ export class GameEngine {
         // Se deve scartare oltre le 7 carte, scarta subito l'IA invece di far partire un altro timer
         if (this.state.turnPhase === 'discard' && this.state.turnPlayerId === playerId) BotAI.discardDown(this, playerId);
       } else if (kind === 'discard') BotAI.discardDown(this, playerId);
-      else if (kind === 'draw') this.drawForIeyasu(playerId, false);
+      else if (kind === 'draw') {
+        if (p.character?.id === 'ieyasu') this.drawForIeyasu(playerId, false);
+        else this.executeStandardDraw(p);
+      }
     } catch (err) {
       console.error('[GameEngine] errore nella decisione automatica:', err);
     }

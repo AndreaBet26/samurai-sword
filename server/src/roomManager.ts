@@ -256,6 +256,12 @@ export class RoomManager {
       c.engine.submitReaction(c.playerId, str(data.responseCardId, 100) || null);
     });
 
+    on('draw_cards', () => {
+      const c = ctx();
+      if (!c) return;
+      c.engine.drawCardsFromDeck(c.playerId);
+    });
+
     on('draw_ieyasu', (data) => {
       const c = ctx();
       if (!c) return;

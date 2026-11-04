@@ -71,7 +71,7 @@ export const TabletopCard: React.FC<TabletopCardProps> = ({
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-1 text-center bg-slate-900 text-slate-300">
-          <span className="text-base mb-1">⚔️</span>
+          <img src="/assets/icons/cards_white.webp" alt="" className="w-5 h-5 object-contain mb-1 opacity-70" />
           <span className="text-[10px] font-bold leading-tight">{fallbackText}</span>
         </div>
       )}

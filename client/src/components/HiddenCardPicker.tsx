@@ -97,12 +97,7 @@ export const HiddenCardPicker: React.FC<HiddenCardPickerProps> = ({ card, target
         </div>
       )}
 
-      <button
-        onClick={onCancel}
-        className="mt-8 text-xs font-bold text-slate-300 hover:text-white underline underline-offset-4 cursor-pointer seat-label"
-      >
-        Annulla
-      </button>
+
     </div>
   );
 };

@@ -33,10 +33,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   }, []);
 
   const teamTitles = {
-    shogun: { name: 'Vittoria dello Shōgun & Samurai! 👑', color: 'text-amber-400', border: 'border-amber-500' },
-    ninja: { name: 'Vittoria della Squadra Ninja! 🥷', color: 'text-blue-400', border: 'border-blue-500' },
-    ronin: { name: 'Vittoria del Ronin! 🗡️', color: 'text-red-400', border: 'border-red-500' },
-    draw: { name: 'Pareggio Straordinario! ⚔️', color: 'text-slate-300', border: 'border-slate-500' }
+    shogun: { name: 'Vittoria dello Shōgun & Samurai! ', color: 'text-amber-400', border: 'border-amber-500' },
+    ninja: { name: 'Vittoria della Squadra Ninja! ', color: 'text-blue-400', border: 'border-blue-500' },
+    ronin: { name: 'Vittoria del Ronin! ', color: 'text-red-400', border: 'border-red-500' },
+    draw: { name: 'Pareggio Straordinario! ', color: 'text-slate-300', border: 'border-slate-500' }
   };
 
   const winningInfo = teamTitles[gameState.winnerTeam || 'draw'];

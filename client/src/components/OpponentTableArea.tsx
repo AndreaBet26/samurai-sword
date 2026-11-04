@@ -241,7 +241,7 @@ export const OpponentTableArea: React.FC<OpponentTableAreaProps> = ({
             {player.isBot && <Bot className="w-3 h-3 text-blue-400 opacity-80" />}
             {!player.isBot && player.isAway && (
               <span title="Disconnesso: un bot gioca al suo posto" className="text-[10px] font-bold text-sky-300">
-                🤖 bot
+                <Bot className="w-3 h-3 text-sky-300 inline mr-1" />bot
               </span>
             )}
             {!player.isBot && !player.isAway && player.isConnected === false && (

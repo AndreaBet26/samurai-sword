@@ -235,13 +235,13 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
   };
 
   /** Bagliore colorato attorno a un elemento. */
-  const glow = (el: HTMLElement | null, color: string, duration = 900) => {
+  const glow = (el: HTMLElement | null, color: string, duration = 700) => {
     if (!el) return;
     el.animate(
       [
-        { boxShadow: `0 0 0px 0px ${color}`, filter: 'brightness(1)' },
-        { boxShadow: `0 0 45px 12px ${color}`, filter: 'brightness(1.35)', offset: 0.3 },
-        { boxShadow: `0 0 0px 0px ${color}`, filter: 'brightness(1)' }
+        { filter: 'brightness(1)' },
+        { filter: 'brightness(1.3)', offset: 0.3 },
+        { filter: 'brightness(1)' }
       ],
       { duration, easing: 'ease-out' }
     );
@@ -435,7 +435,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           const charCard = document.getElementById(`character-card-${ev.targetId}`);
           if (charCard) {
             charCard.classList.remove('card-wound-flash');
-            void charCard.offsetWidth; // trigger reflow per riavviare l'animazione del layer rosso
+            void charCard.offsetWidth;
             charCard.classList.add('card-wound-flash');
             window.setTimeout(() => charCard.classList.remove('card-wound-flash'), 800);
           }
@@ -447,14 +447,15 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
             burst(p, ['#f97316', '#fbbf24'], 16, { spread: 60 });
           }
           shake(charCard || el, 6 + ev.amount * 3 + (lethal ? 6 : 0), lethal ? 600 : 420);
-          glow(charCard || el, lethal ? 'rgba(220,38,38,0.95)' : 'rgba(220,38,38,0.7)', 700);
-          floatText(p, `−${ev.amount} ❤`, lethal ? '#ff1f1f' : ev.weapon ? '#f87171' : '#fb923c', lethal ? 46 : 30 + ev.amount * 4, {
-            glow: '#7f1d1d',
-            duration: lethal ? 1500 : 1200
-          });
+          floatText(
+            p,
+            `<span style="display:inline-flex;align-items:center;gap:6px;">−${ev.amount}<img src="/assets/ui/resilience_token.webp" style="width:24px;height:24px;object-fit:contain;" /></span>`,
+            lethal ? '#ff1f1f' : ev.weapon ? '#f87171' : '#fb923c',
+            lethal ? 42 : 28 + ev.amount * 4,
+            { glow: '#7f1d1d', duration: lethal ? 1500 : 1200 }
+          );
 
           if (!hurried) soundManager.play(ev.weapon ? 'swordHit' : 'damage');
-          // I gettoni Vita persi vengono buttati nella riserva al centro del tavolo
           const fromHp = hpPoint(ev.targetId);
           const toReserve = reservePoint();
           for (let k = 0; k < ev.amount; k++) {
@@ -464,45 +465,60 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
         }
 
         case 'parry': {
-          // Jiujitsu: non è una parata, l'arma viene semplicemente scartata
+          const charCard = document.getElementById(`character-card-${ev.playerId}`);
+          const el = anchorEl(ev.playerId);
+          const p = centerOf(charCard || el);
+
+          // Jiujitsu: l'arma viene scartata per parare
           if (ev.against === 'jujutsu') {
             const from = playerPoint(ev.playerId);
             fly(from, discardPoint(), cardHtml(ev.cardTemplateId), { duration: 620, arc: 60, spin: 160, endScale: 0.9 });
             if (!hurried) soundManager.play('cardPlace');
-            floatText(from, 'Arma scartata', '#fde68a', 24, { glow: '#92400e' });
+            floatText(
+              from,
+              `<span style="display:inline-flex;align-items:center;gap:6px;"><img src="/assets/icons/crossed_swords_white.webp" style="width:24px;height:24px;object-fit:contain;" />Arma scartata</span>`,
+              '#fde68a',
+              24,
+              { glow: '#92400e' }
+            );
             break;
           }
-          const el = anchorEl(ev.playerId);
-          const p = centerOf(el);
-          const label = 'PARATA!';
-          const color = '#e0f2fe';
-          // Scudo che si apre
-          const shield = spawn(
+
+          // Se e una parata con arma (es. Hanzo) usa spade incrociate, altrimenti scudo classico
+          const isWeaponParry = ev.cardTemplateId && !ev.cardTemplateId.includes('parata');
+          const iconSrc = isWeaponParry ? '/assets/icons/crossed_swords_white.webp' : '/assets/icons/shield_white.webp';
+
+          // Animazione fluida dell'icona (senza riquadri ne cerchi)
+          const iconEl = spawn(
             {
               transform: `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`,
-              width: '120px',
-              height: '120px',
-              borderRadius: '50%',
-              border: `4px solid ${color}`,
-              boxShadow: `0 0 30px ${color}, inset 0 0 30px ${color}`,
+              width: '56px',
+              height: '56px',
               zIndex: '96',
-              opacity: '0'
+              opacity: '0',
+              pointerEvents: 'none'
             },
-            '',
+            `<img src="${iconSrc}" style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 16px ${isWeaponParry ? '#f59e0b' : '#38bdf8'})" />`,
             800
           );
           const base = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`;
-          shield?.animate(
+          iconEl?.animate(
             [
-              { transform: `${base} scale(0.2)`, opacity: 1 },
-              { transform: `${base} scale(1)`, opacity: 1, offset: 0.35 },
-              { transform: `${base} scale(1.6)`, opacity: 0 }
+              { transform: `${base} scale(0.4)`, opacity: 0 },
+              { transform: `${base} scale(1.15)`, opacity: 1, offset: 0.25 },
+              { transform: `${base} scale(1.25) translateY(-14px)`, opacity: 0 }
             ],
-            { duration: 700, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)', fill: 'forwards' }
+            { duration: 750, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)', fill: 'forwards' }
           );
-          burst(p, ['#ffffff', '#fde68a', '#bae6fd'], 45, { spread: 120, startVelocity: 35, scalar: 0.6, gravity: 0.8 });
-          glow(el, 'rgba(186,230,253,0.9)', 700);
-          floatText(p, `🛡️ ${label}`, color, 32, { glow: '#0ea5e9' });
+
+          burst(p, ['#ffffff', '#fde68a', '#bae6fd'], 35, { spread: 100, startVelocity: 28, scalar: 0.6, gravity: 0.8 });
+          floatText(
+            p,
+            `<span style="display:inline-flex;align-items:center;gap:6px;"><img src="${iconSrc}" style="width:24px;height:24px;object-fit:contain;" />PARATA!</span>`,
+            '#e0f2fe',
+            30,
+            { glow: '#0ea5e9' }
+          );
           if (!hurried) soundManager.play('parry');
           break;
         }
@@ -518,7 +534,7 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           }
           const isMe = ev.targetId === myId;
           const p = centerOf(charCard || el);
-          floatText(p, isMe ? '💀 SEI STATO ABBATTUTO!' : `💀 ${nameOf(ev.targetId)} ABBATTUTO!`, '#ef4444', 30, {
+          floatText(p, `<span style="display:inline-flex;align-items:center;gap:6px;"><img src="/assets/icons/sword_white.webp" style="width:24px;height:24px;object-fit:contain;" />${isMe ? 'SEI STATO ABBATTUTO!' : `${nameOf(ev.targetId)} ABBATTUTO!`}</span>`, '#ef4444', 30, {
             glow: '#7f1d1d',
             duration: hurried ? 1500 : 2200,
             rise: 55
@@ -539,12 +555,23 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           const to = honorPoint(ev.toId);
           flyToken('honor', from, to, `honor:${ev.fromId}`, `honor:${ev.toId}`, { duration: hurried ? 500 : 950, arc: 140 });
           window.setTimeout(() => {
-            burst(to, ['#f0abfc', '#c084fc', '#facc15'], 50, { spread: 100, gravity: 0.6, scalar: 0.7 });
-            glow(anchorEl(ev.toId), 'rgba(232,121,249,0.9)', 900);
-            floatText(to, '+1 🪷', '#f5d0fe', 34, { glow: '#a855f7' });
+            burst(to, ['#f0abfc', '#c084fc', '#facc15'], 35, { spread: 90, gravity: 0.6, scalar: 0.7 });
+            floatText(
+              to,
+              `<span style="display:inline-flex;align-items:center;gap:6px;">+1<img src="/assets/ui/honor_token.webp" style="width:24px;height:24px;object-fit:contain;" /></span>`,
+              '#f5d0fe',
+              30,
+              { glow: '#a855f7' }
+            );
             if (!hurried) soundManager.play('honorGain');
           }, reduced() ? 300 : 900);
-          floatText(from, '−1 🪷', '#d8b4fe', 26, { glow: '#581c87', delay: 100 });
+          floatText(
+            from,
+            `<span style="display:inline-flex;align-items:center;gap:6px;">−1<img src="/assets/ui/honor_token.webp" style="width:22px;height:22px;object-fit:contain;" /></span>`,
+            '#d8b4fe',
+            24,
+            { glow: '#581c87', delay: 100 }
+          );
           break;
         }
 
@@ -563,7 +590,13 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
               ],
               { duration: 1200, delay: i * 80, easing: 'ease-out', fill: 'forwards' }
             );
-            floatText(p, '−1 🪷', '#c4b5fd', 26, { delay: i * 80, glow: '#4c1d95' });
+            floatText(
+              p,
+              `<span style="display:inline-flex;align-items:center;gap:6px;">−1<img src="/assets/ui/honor_token.webp" style="width:22px;height:22px;object-fit:contain;" /></span>`,
+              '#c4b5fd',
+              24,
+              { delay: i * 80, glow: '#4c1d95' }
+            );
           });
           break;
         }
@@ -631,7 +664,13 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
           );
           window.setTimeout(() => {
             if (ev.isWeapon) {
-              floatText({ x: deck.x, y: deck.y - 140 }, '⚔️ BUSHIDO: ARMA!', '#fca5a5', 28, { glow: '#b91c1c', duration: 1400 });
+              floatText(
+                { x: deck.x, y: deck.y - 140 },
+                `<span style="display:inline-flex;align-items:center;gap:6px;"><img src="/assets/icons/sword_white.webp" style="width:24px;height:24px;object-fit:contain;" />BUSHIDO: ARMA!</span>`,
+                '#fca5a5',
+                28,
+                { glow: '#b91c1c', duration: 1400 }
+              );
               if (!hurried) soundManager.playTaiko();
             } else {
               floatText({ x: deck.x, y: deck.y - 140 }, 'Bushido: salvo', '#e2e8f0', 22, { glow: '#334155' });
@@ -649,17 +688,22 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
         case 'heal': {
           if (ev.amount <= 0) break;
           if (!hurried) soundManager.play('heal');
+          const charCard = document.getElementById(`character-card-${ev.playerId}`);
           const el = anchorEl(ev.playerId);
-          const p = centerOf(el);
-          // I gettoni tornano dalla riserva al giocatore
+          const p = centerOf(charCard || el);
           const fromReserve = reservePoint();
           const toHp = hpPoint(ev.playerId);
           for (let k = 0; k < ev.amount; k++) {
             flyToken('hp', fromReserve, toHp, 'reserve', `hp:${ev.playerId}`, { delay: k * 110, duration: hurried ? 380 : 600 });
           }
-          glow(el, 'rgba(74,222,128,0.85)', 1000);
-          burst(p, ['#86efac', '#4ade80', '#fef08a'], 30, { spread: 360, startVelocity: 14, gravity: -0.25, ticks: 120, scalar: 0.6 });
-          floatText(p, `+${ev.amount} ❤`, '#86efac', 32, { glow: '#15803d' });
+          burst(p, ['#86efac', '#4ade80', '#fef08a'], 25, { spread: 360, startVelocity: 14, gravity: -0.25, ticks: 120, scalar: 0.6 });
+          floatText(
+            p,
+            `<span style="display:inline-flex;align-items:center;gap:6px;">+${ev.amount}<img src="/assets/ui/resilience_token.webp" style="width:24px;height:24px;object-fit:contain;" /></span>`,
+            '#86efac',
+            30,
+            { glow: '#15803d' }
+          );
           break;
         }
 
