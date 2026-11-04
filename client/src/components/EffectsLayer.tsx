@@ -366,9 +366,9 @@ export const EffectsLayer: React.FC<EffectsLayerProps> = ({ events, myId, player
   const backHtml = () =>
     `<img src="/assets/ui/card_back.webp" style="width:100%;height:100%;object-fit:cover;border-radius:6px;border:2px solid rgba(0,0,0,0.6)" />`;
   const heartHtml = (size = 26) =>
-    `<div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%, #fca5a5 0%, #dc2626 38%, #7f1d1d 100%);border:2px solid #fecaca;box-shadow:0 3px 6px rgba(0,0,0,0.7)"><svg viewBox="0 0 24 24" width="${size * 0.55}" height="${size * 0.55}"><path fill="#fff7ed" d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.4h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"/></svg></div>`;
-  const lotusHtml = (size = 44) =>
-    `<div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${size * 0.62}px;background:radial-gradient(circle at 35% 30%, #f5d0fe, #a855f7 55%, #581c87);border:2px solid #f0abfc;box-shadow:0 0 18px #c084fc">🪷</div>`;
+    `<img src="/assets/ui/resilience_token.webp" style="width:${size}px;height:${size}px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 10px rgba(239,68,68,0.7));pointer-events:none;user-select:none;" />`;
+  const lotusHtml = (size = 32) =>
+    `<img src="/assets/ui/honor_token.webp" style="width:${size}px;height:${size}px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 12px rgba(192,132,252,0.8));pointer-events:none;user-select:none;" />`;
 
   /** Banner centrale cinematografico (kanji + titolo + sottotitolo). */
   const cinematicBanner = (kanji: string, title: string, subtitle: string, color: string, baseDuration = 1600) => {

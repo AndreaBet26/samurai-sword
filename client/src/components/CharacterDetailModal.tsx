@@ -51,7 +51,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({ char
           </div>
 
           <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/80 w-fit">
-            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+            <img src="/assets/ui/resilience_token.webp" alt="PV" className="w-4 h-4 object-contain inline-block drop-shadow" />
             <span className="text-xs text-slate-300 font-bold">
               Resistenza Massima: <strong className="text-red-400">{character.maxHp} PV</strong>
             </span>

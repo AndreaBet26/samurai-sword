@@ -23,21 +23,24 @@ export const HeartTokenFace: React.FC<{ size: number }> = ({ size }) => (
     style={{
       width: size,
       height: size,
-      borderRadius: '50%',
-      background: 'radial-gradient(circle at 35% 30%, #fca5a5 0%, #dc2626 38%, #7f1d1d 100%)',
-      border: '2px solid #fecaca',
-      boxShadow: '0 3px 5px rgba(0,0,0,0.75), inset 0 -2px 3px rgba(0,0,0,0.45), inset 0 2px 2px rgba(255,255,255,0.35)',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center'
+      justifyContent: 'center',
+      userSelect: 'none',
+      pointerEvents: 'none'
     }}
   >
-    <svg viewBox="0 0 24 24" width={size * 0.55} height={size * 0.55} aria-hidden="true">
-      <path
-        fill="#fff7ed"
-        d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.4 1.1 4.1 2.4h3C14.2 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z"
-      />
-    </svg>
+    <img
+      src="/assets/ui/resilience_token.webp"
+      alt="Resistenza"
+      draggable={false}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.85)) drop-shadow(0 1px 1px rgba(0,0,0,0.5))'
+      }}
+    />
   </div>
 );
 
@@ -46,18 +49,24 @@ export const HonorTokenFace: React.FC<{ size: number }> = ({ size }) => (
     style={{
       width: size,
       height: size,
-      borderRadius: '50%',
-      background: 'radial-gradient(circle at 35% 30%, #f5d0fe 0%, #a855f7 40%, #4c1d95 100%)',
-      border: '2px solid #fcd34d',
-      boxShadow: '0 3px 5px rgba(0,0,0,0.75), inset 0 -2px 3px rgba(0,0,0,0.45), inset 0 2px 2px rgba(255,255,255,0.35)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: size * 0.56,
-      lineHeight: 1
+      userSelect: 'none',
+      pointerEvents: 'none'
     }}
   >
-    🪷
+    <img
+      src="/assets/ui/honor_token.webp"
+      alt="Onore"
+      draggable={false}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.85)) drop-shadow(0 1px 1px rgba(0,0,0,0.5))'
+      }}
+    />
   </div>
 );
 

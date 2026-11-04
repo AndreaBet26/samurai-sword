@@ -64,3 +64,11 @@ Inserisci le immagini delle carte del mazzo:
 - `samurai.webp`
 - `ninja.webp`
 - `ronin.webp`
+
+
+---
+
+## 4. Gettoni Gioco (`client/public/assets/ui/`)
+- `honor_token.webp` (e `.png`): Fiore di Sakura originale (Punti Onore)
+- `resilience_token.webp` (e `.png`): Cuore in legno originale (Punti Resistenza / Ferita)
+- `score_board.webp`: Tabellone moltiplicatori punteggio

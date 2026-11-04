@@ -115,7 +115,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-center font-bold text-purple-300">
-                        {p.honorPoints} 🪷
+                        <span className="inline-flex items-center gap-1.5 justify-center">
+                          {p.honorPoints}
+                          <img src="/assets/ui/honor_token.webp" alt="Onore" className="w-4 h-4 object-contain inline-block drop-shadow" />
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 text-center font-medium text-amber-300">
                         +{p.daimyoBonus}
