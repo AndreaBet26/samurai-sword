@@ -815,10 +815,22 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
             }
           >
             {isDeckReadyToDraw && (
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-amber-500 text-slate-950 font-black text-[11px] px-2.5 py-0.5 rounded-full shadow-lg border border-amber-300 flex items-center gap-1.5 z-30 animate-bounce">
-                <img src="/assets/icons/cards_white.webp" alt="" className="w-3.5 h-3.5 object-contain invert" />
-                <span>PESCA DAL MAZZO</span>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeckClick();
+                }}
+                draggable={true}
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  e.dataTransfer.setData('text/plain', 'deck_draw');
+                  e.dataTransfer.effectAllowed = 'copyMove';
+                }}
+                className="absolute -top-7 left-1/2 -translate-x-1/2 w-11 h-11 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 p-2 shadow-[0_4px_18px_rgba(245,158,11,0.7)] border-2 border-amber-200 flex items-center justify-center z-30 animate-bounce cursor-pointer transition-transform hover:scale-115 active:scale-95"
+                title="Pesca le tue carte (clicca o trascina)"
+              >
+                <img src="/assets/icons/cards.webp" alt="Pesca" className="w-full h-full object-contain pointer-events-none drop-shadow" />
+              </button>
             )}
             <TabletopCard imageSrc="/assets/ui/card_back.webp" fallbackText="Mazzo" size="md" />
             <span className={`absolute bottom-1 right-1.5 font-black text-sm seat-label ${gameState.deckCount <= 8 ? 'text-red-300 animate-pulse' : 'text-amber-200'}`}>
@@ -1102,7 +1114,21 @@ export const VirtualTable: React.FC<VirtualTableProps> = ({
       )}
 
       {/* ===================== CENTRO IN BASSO: PROPRIETÀ E MANO ===================== */}
-      <div className="absolute bottom-0 left-0 right-0 pb-3 flex flex-col items-center select-none z-20 pointer-events-none">
+      <div
+        className="absolute bottom-0 left-0 right-0 pb-3 flex flex-col items-center select-none z-20 pointer-events-none"
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('text/plain')) {
+            e.preventDefault();
+          }
+        }}
+        onDrop={(e) => {
+          const data = e.dataTransfer.getData('text/plain');
+          if (data === 'deck_draw' && isDeckReadyToDraw) {
+            e.preventDefault();
+            handleDeckClick();
+          }
+        }}
+      >
         {/* LE TUE CARTE GIOCATE: più avanti, verso il centro del tavolo */}
         {myPrivateState && (
           <div className="w-full flex justify-center mb-2 pointer-events-auto">

@@ -73,6 +73,7 @@ export class RoomManager {
       const engine = new GameEngine(roomCode, () => {
         this.broadcastRoomState(roomCode);
       });
+      engine.manualDraw = true;
       this.rooms.set(roomCode, engine);
 
       engine.addPlayer(playerId, playerName(data.playerName) || 'Giocatore 1', true, false);
