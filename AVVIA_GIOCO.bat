@@ -37,10 +37,13 @@ echo               SAMURAI SWORD - AVVIO GIOCO
 echo ========================================================
 echo.
 echo  Sto avviando il server di gioco e l'interfaccia...
-echo  Il gioco si aprira automaticamente nel browser a breve!
+echo.
+echo  * Link per te (in locale):     http://localhost:5173
+echo  * Link per AMICI (online):     http://178.104.245.26:3001
 echo.
 echo  [SUGGERIMENTO] Non chiudere questa finestra mentre giochi.
-echo                 Per arrestare il gioco, chiudi la finestra.
+echo                 Dalla lobby puoi cliccare "Copia link invito"
+echo                 per inviarlo direttamente ai tuoi amici!
 echo ========================================================
 echo.
 

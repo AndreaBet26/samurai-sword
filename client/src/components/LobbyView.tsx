@@ -93,7 +93,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt('Copia questo testo:', text));
     else window.prompt('Copia questo testo:', text);
   };
-  const inviteLink = currentRoomCode ? `${window.location.origin}/?stanza=${currentRoomCode}` : '';
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const publicBaseUrl = isLocalhost ? 'http://178.104.245.26:3001' : window.location.origin;
+  const inviteLink = currentRoomCode ? `${publicBaseUrl}/?stanza=${currentRoomCode}` : '';
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
