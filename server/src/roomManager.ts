@@ -2,12 +2,12 @@ import { Server, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { GameEngine } from './gameEngine';
 
-/** Quanto aspettare un giocatore disconnesso in LOBBY prima di toglierlo dalla stanza. */
-const LOBBY_GRACE_MS = 20_000;
-/** Quanto aspettare un giocatore disconnesso IN PARTITA prima che un bot prenda il suo posto. */
-const AWAY_GRACE_MS = 30_000;
-/** Dopo quanto tempo senza nessun umano collegato la stanza viene chiusa. */
-const EMPTY_ROOM_TTL_MS = 5 * 60_000;
+/** Quanto aspettare un giocatore disconnesso in LOBBY prima di toglierlo dalla stanza (3 minuti). */
+const LOBBY_GRACE_MS = 180_000;
+/** Quanto aspettare un giocatore disconnesso IN PARTITA prima che un bot prenda temporaneamente il suo posto (60 secondi). */
+const AWAY_GRACE_MS = 60_000;
+/** Dopo quanto tempo senza nessun umano collegato la stanza viene chiusa (15 minuti). */
+const EMPTY_ROOM_TTL_MS = 15 * 60_000;
 
 interface Session {
   roomCode: string;
@@ -90,14 +90,42 @@ export class RoomManager {
         return;
       }
 
+      const inputName = playerName(data.playerName);
+
+      // CASO A: Partita già in corso
       if (engine.state.status !== 'lobby') {
-        socket.emit('error_message', { message: 'La partita è già in corso.' });
+        // Cerca se esiste un giocatore umano con questo nome che era disconnesso o away e può rientrare
+        const matchingPlayer = engine.state.players.find(
+          p => !p.isBot && p.name.toLowerCase() === inputName.toLowerCase() && (!p.isConnected || p.isAway)
+        );
+
+        if (matchingPlayer) {
+          this.leaveCurrent(socket);
+          this.bindSocket(socket, code, matchingPlayer.id, matchingPlayer.isHost, true);
+          engine.setPlayerConnected(matchingPlayer.id, true);
+          return;
+        }
+
+        socket.emit('error_message', { message: 'La partita è già in corso e non ci sono posti liberi per questo giocatore.' });
+        return;
+      }
+
+      // CASO B: Stanza in Lobby
+      // Se un giocatore con lo stesso nome si era appena disconnesso (es. calo Wi-Fi/ricarica pagina):
+      const existingInLobby = engine.state.players.find(
+        p => !p.isBot && p.name.toLowerCase() === inputName.toLowerCase() && !p.isConnected
+      );
+
+      if (existingInLobby) {
+        this.leaveCurrent(socket);
+        this.bindSocket(socket, code, existingInLobby.id, existingInLobby.isHost, true);
+        engine.setPlayerConnected(existingInLobby.id, true);
         return;
       }
 
       this.leaveCurrent(socket);
       const playerId = `p_${uuidv4()}`;
-      const name = playerName(data.playerName) || `Giocatore ${engine.state.players.length + 1}`;
+      const name = inputName || `Giocatore ${engine.state.players.length + 1}`;
       const success = engine.addPlayer(playerId, name, false, false);
 
       if (!success) {

@@ -10,13 +10,15 @@ const getSocketUrl = (): string => {
 export const socket: Socket = io(getSocketUrl(), {
   autoConnect: true,
   transports: ['websocket', 'polling'],
-  // Riconnessione automatica (es. telefono in standby o Wi-Fi che salta)
+  // Riconnessione automatica e rapida (es. telefono in standby o Wi-Fi che salta)
   reconnection: true,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 3000,
+  timeout: 10000
 });
 
-// --- Sessione salvata nel browser: permette di rientrare in partita dopo un refresh ---
+// --- Sessione salvata nel browser: permette di rientrare in partita dopo un refresh o riapertura del link ---
 
 export interface SavedSession {
   token: string;
@@ -27,12 +29,12 @@ const SESSION_KEY = 'samurai-sword-session';
 
 export function loadSession(): SavedSession | null {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed?.token === 'string' && typeof parsed?.roomCode === 'string') return parsed;
   } catch {
-    // sessionStorage (una sessione per scheda: puoi aprire più giocatori in più schede) non disponibile (es. impostazioni del browser): si gioca senza rientro automatico
+    // Storage non disponibile
   }
   return null;
 }
@@ -40,6 +42,7 @@ export function loadSession(): SavedSession | null {
 export function saveSession(session: SavedSession) {
   try {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch {
     /* ignora */
   }
@@ -48,6 +51,7 @@ export function saveSession(session: SavedSession) {
 export function clearSession() {
   try {
     sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
   } catch {
     /* ignora */
   }

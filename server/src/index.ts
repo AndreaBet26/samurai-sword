@@ -36,7 +36,10 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingInterval: 10000, // Ping attivo ogni 10 secondi per prevenire timeout proxy e cadute di rete
+  pingTimeout: 10000,  // 10s di tolleranza prima di considerare perso il socket
+  transports: ['websocket', 'polling']
 });
 
 const roomManager = new RoomManager(io);

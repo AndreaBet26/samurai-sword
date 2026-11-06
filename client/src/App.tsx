@@ -65,6 +65,8 @@ export const App: React.FC = () => {
     // La sessione salvata non è più valida (stanza chiusa o server riavviato)
     socket.on('session_expired', () => {
       clearSession();
+      setCurrentRoomCode(null);
+      setNotice('La sessione precedente è terminata o la stanza è stata chiusa.');
     });
 
     // Ad ogni (ri)connessione prova a rientrare nella stanza in cui si stava giocando
