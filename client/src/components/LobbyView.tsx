@@ -157,16 +157,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             {/* Avviso o invito */}
             {notice && (
               <div
-                className="text-center font-bold text-amber-300 bg-amber-950/80 border border-amber-500/80 rounded-xl py-2 px-4 mb-3 shadow-lg"
-                style={{ fontSize: 18 }}
+                className="text-center font-bold text-amber-300 rounded-xl py-2 px-4 mb-3"
+                style={{
+                  fontSize: 18,
+                  backgroundColor: 'transparent',
+                  border: '1.5px solid rgba(245, 158, 11, 0.6)',
+                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
+                }}
               >
                 {notice}
               </div>
             )}
             {invited && (
               <div
-                className="text-center font-bold text-sky-200 bg-sky-950/80 border border-sky-500/80 rounded-xl py-2 px-4 mb-3 shadow-lg"
-                style={{ fontSize: 18 }}
+                className="text-center font-bold text-sky-200 rounded-xl py-2 px-4 mb-3"
+                style={{
+                  fontSize: 18,
+                  backgroundColor: 'transparent',
+                  border: '1.5px solid rgba(56, 189, 248, 0.6)',
+                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
+                }}
               >
                 Sei stato invitato nella stanza <span className="font-mono font-black text-amber-400">{joinCode}</span>: inserisci il tuo nome e premi ENTRA.
               </div>
@@ -188,7 +198,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 IL TUO NOME GUERRIERO
               </label>
 
-              {/* Campo di Inserimento (Input Text) */}
+              {/* Campo di Inserimento (Input Text) - Trasparente come stampato su foglio */}
               <input
                 id="input-player-name"
                 type="text"
@@ -205,8 +215,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 style={{
                   width: 780,
                   height: 72,
-                  backgroundColor: 'rgba(5, 8, 15, 0.75)',
-                  border: '1.5px solid #2b4c7e',
+                  backgroundColor: 'transparent',
+                  border: '1.5px solid rgba(255, 255, 255, 0.35)',
                   borderRadius: 16,
                   color: '#fdf8e2',
                   fontSize: 26,
@@ -214,7 +224,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   paddingLeft: 24,
                   paddingRight: 24,
                   outline: 'none',
-                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.75), inset 0 2px 6px rgba(0, 0, 0, 0.6)',
+                  boxShadow: 'none',
+                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)',
                   transition: 'border-color 0.2s, box-shadow 0.2s'
                 }}
                 onFocus={(e) => {
@@ -222,8 +233,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   e.currentTarget.style.boxShadow = '0 0 18px rgba(245, 158, 11, 0.4)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#2b4c7e';
-                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.75), inset 0 2px 6px rgba(0, 0, 0, 0.6)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.35)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               />
             </div>
@@ -240,28 +251,29 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <button
                 type="button"
                 onClick={() => handleCreate()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:brightness-115 active:scale-95"
+                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-red-950/30 hover:border-red-400 active:scale-95"
                 style={{
                   width: 270,
                   height: 68,
-                  background: 'linear-gradient(to right, #b30000, #e60000)',
+                  backgroundColor: 'transparent',
                   borderRadius: 16,
-                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  border: '2px solid #e60000',
                   fontSize: 18,
                   letterSpacing: '0.04em',
                   gap: 10,
-                  boxShadow: '0 8px 24px rgba(230, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8)'
+                  boxShadow: 'none',
+                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 12px rgba(230, 0, 0, 0.7)'
                 }}
               >
                 <img
                   src="/assets/icons/sword_white.webp"
                   alt=""
-                  style={{ width: 22, height: 22, objectFit: 'contain' }}
+                  style={{ width: 22, height: 22, objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(230,0,0,0.8))' }}
                 />
                 <span>CREA NUOVA STANZA</span>
               </button>
 
-              {/* Input Codice: CODICE */}
+              {/* Input Codice: CODICE - Trasparente */}
               <input
                 type="text"
                 value={joinCode}
@@ -274,8 +286,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 style={{
                   width: 180,
                   height: 68,
-                  backgroundColor: 'rgba(10, 16, 28, 0.85)',
-                  border: '1.5px solid #3a4a63',
+                  backgroundColor: 'transparent',
+                  border: '1.5px solid rgba(255, 255, 255, 0.35)',
                   borderRadius: 16,
                   color: '#f6ad55',
                   fontSize: 22,
@@ -284,7 +296,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
                   outline: 'none',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.7)',
+                  boxShadow: 'none',
+                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)',
                   transition: 'border-color 0.2s, box-shadow 0.2s'
                 }}
                 onFocus={(e) => {
@@ -292,26 +305,27 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   e.currentTarget.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.4)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#3a4a63';
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.7)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.35)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               />
 
-              {/* Pulsante: ENTRA */}
+              {/* Pulsante: ENTRA - Trasparente */}
               <button
                 type="button"
                 onClick={() => handleJoin()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-[#1a273f] hover:border-amber-300 active:scale-95"
+                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-amber-950/30 hover:border-amber-300 active:scale-95"
                 style={{
                   width: 270,
                   height: 68,
-                  backgroundColor: 'rgba(20, 29, 47, 0.92)',
-                  border: '1.5px solid #d69e2e',
+                  backgroundColor: 'transparent',
+                  border: '2px solid #d69e2e',
                   borderRadius: 16,
                   fontSize: 18,
                   letterSpacing: '0.04em',
                   gap: 10,
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6), 0 0 15px rgba(214, 158, 46, 0.25)'
+                  boxShadow: 'none',
+                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 12px rgba(214, 158, 46, 0.7)'
                 }}
               >
                 <Users style={{ width: 22, height: 22, color: '#f6ad55' }} />
@@ -346,29 +360,32 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               top: 860,
               width: 960,
               height: 780,
-              backgroundColor: 'rgba(10, 15, 25, 0.88)',
-              border: '1px solid #1a2c42',
-              borderRadius: 24,
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 45px rgba(26, 44, 66, 0.35)',
-              backdropFilter: 'blur(12px)',
-              padding: '35px 40px'
+              backgroundColor: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              backdropFilter: 'none',
+              padding: '25px 30px'
             }}
           >
-            {/* Header Stanza & Condivisione */}
+            {/* Header Stanza & Condivisione - Trasparente */}
             <div
               className="flex items-center justify-between p-4 rounded-2xl"
-              style={{ backgroundColor: '#05080f', border: '1px solid #1f3a60' }}
+              style={{
+                backgroundColor: 'transparent',
+                border: '1.5px solid rgba(255, 255, 255, 0.35)',
+                textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
+              }}
             >
               <div>
                 <span
                   className="uppercase font-bold block"
-                  style={{ fontSize: 13, color: '#a0aec0', letterSpacing: '0.08em' }}
+                  style={{ fontSize: 13, color: '#e2e8f0', letterSpacing: '0.08em' }}
                 >
                   CODICE STANZA DA CONDIVIDERE
                 </span>
                 <span
                   className="font-mono font-black text-amber-400 tracking-widest"
-                  style={{ fontSize: 32 }}
+                  style={{ fontSize: 32, textShadow: '0 0 12px rgba(245, 158, 11, 0.5)' }}
                 >
                   {currentRoomCode}
                 </span>
@@ -376,8 +393,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => copy(currentRoomCode, 'code')}
-                  className="px-4 py-2.5 rounded-xl font-semibold text-slate-200 transition-all flex items-center gap-2 cursor-pointer hover:bg-slate-700 active:scale-95"
-                  style={{ backgroundColor: '#1a273f', border: '1px solid #2d3748', fontSize: 16 }}
+                  className="px-4 py-2.5 rounded-xl font-semibold text-slate-100 transition-all flex items-center gap-2 cursor-pointer hover:bg-white/10 active:scale-95"
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                    fontSize: 16
+                  }}
                   title="Copia il codice della stanza"
                 >
                   {copied === 'code' ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
@@ -385,11 +406,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </button>
                 <button
                   onClick={() => copy(inviteLink, 'link')}
-                  className="px-5 py-2.5 rounded-xl font-bold text-slate-950 transition-all flex items-center gap-2 cursor-pointer hover:brightness-110 active:scale-95"
+                  className="px-5 py-2.5 rounded-xl font-bold text-amber-300 transition-all flex items-center gap-2 cursor-pointer hover:bg-amber-950/30 active:scale-95"
                   style={{
-                    background: 'linear-gradient(to right, #d97706, #f59e0b)',
+                    backgroundColor: 'transparent',
+                    border: '2px solid #f59e0b',
                     fontSize: 16,
-                    boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)'
+                    textShadow: '0 0 10px rgba(245, 158, 11, 0.6)'
                   }}
                   title="Copia il link d'invito online diretto"
                 >
@@ -404,11 +426,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span
                   className="font-bold uppercase tracking-wider"
-                  style={{ fontSize: 14, color: '#a0aec0' }}
+                  style={{ fontSize: 14, color: '#e2e8f0', textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}
                 >
                   Guerrieri in Attesa ({players.length} / 7)
                 </span>
-                <span style={{ fontSize: 13, color: '#718096' }}>
+                <span style={{ fontSize: 13, color: '#cbd5e1', textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>
                   Minimo 3 giocatori per avviare
                 </span>
               </div>
@@ -421,7 +443,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   <div
                     key={p.id}
                     className="p-3 rounded-xl flex items-center justify-between"
-                    style={{ backgroundColor: 'rgba(5, 8, 15, 0.7)', border: '1px solid #1a2c42' }}
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      textShadow: '0 2px 6px rgba(0, 0, 0, 0.9)'
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       {p.isBot ? (
@@ -439,9 +465,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           className="font-bold px-3 py-0.5 rounded-full"
                           style={{
                             fontSize: 12,
-                            backgroundColor: 'rgba(120, 53, 15, 0.6)',
+                            backgroundColor: 'transparent',
                             color: '#fcd34d',
-                            border: '1px solid #b45309'
+                            border: '1.5px solid #fcd34d'
                           }}
                         >
                           Capostanza
@@ -452,9 +478,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           className="font-semibold px-3 py-0.5 rounded-full flex items-center gap-1"
                           style={{
                             fontSize: 12,
-                            backgroundColor: 'rgba(30, 41, 59, 0.8)',
+                            backgroundColor: 'transparent',
                             color: '#94a3b8',
-                            border: '1px solid #475569'
+                            border: '1px solid #94a3b8'
                           }}
                         >
                           <Bot className="w-3.5 h-3.5" />
@@ -464,7 +490,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       {isHost && p.id !== myId && !p.isHost && (
                         <button
                           onClick={() => removePlayer(p.id)}
-                          className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer p-1"
+                          className="text-slate-400 hover:text-red-400 transition-colors cursor-pointer p-1"
                           title={`Togli ${p.name} dalla stanza`}
                         >
                           <Trash2 className="w-5 h-5" />
@@ -476,10 +502,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            {/* Impostazioni Stanza */}
+            {/* Impostazioni Stanza - Trasparente */}
             <div
               className="p-3 rounded-xl mb-3 space-y-2"
-              style={{ backgroundColor: 'rgba(5, 8, 15, 0.6)', border: '1px solid #1a2c42' }}
+              style={{
+                backgroundColor: 'transparent',
+                border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
+              }}
             >
               {(
                 [
@@ -505,7 +535,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <div key={row.key} className="flex items-center justify-between">
                   <span
                     className="font-bold uppercase tracking-wider"
-                    style={{ fontSize: 13, color: '#a0aec0' }}
+                    style={{ fontSize: 13, color: '#e2e8f0' }}
                   >
                     {row.label}
                   </span>
@@ -521,8 +551,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                             active
                               ? 'bg-amber-500 text-slate-950 font-bold'
                               : isHost
-                              ? 'text-slate-400 hover:text-slate-100 cursor-pointer bg-slate-900 border border-slate-800'
-                              : 'text-slate-600 bg-slate-950'
+                              ? 'text-slate-300 hover:text-white cursor-pointer bg-transparent border border-white/20'
+                              : 'text-slate-500 bg-transparent border border-white/10'
                           }`}
                           style={{ fontSize: 13 }}
                         >
@@ -543,12 +573,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                     <button
                       type="button"
                       onClick={handleAddBot}
-                      className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-700 active:scale-98"
+                      className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 cursor-pointer hover:bg-sky-950/30 active:scale-98"
                       style={{
-                        backgroundColor: '#1a273f',
-                        border: '1px solid #2d3748',
-                        color: '#cbd5e1',
-                        fontSize: 15
+                        backgroundColor: 'transparent',
+                        border: '1.5px solid #38bdf8',
+                        color: '#bae6fd',
+                        fontSize: 15,
+                        textShadow: '0 0 10px rgba(56, 189, 248, 0.5)'
                       }}
                     >
                       <Bot className="w-5 h-5 text-sky-400" />
@@ -562,14 +593,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                     disabled={players.length < 3}
                     className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all ${
                       players.length >= 3
-                        ? 'text-white shadow-xl hover:scale-[1.01] active:scale-98 cursor-pointer'
-                        : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                        ? 'text-white hover:scale-[1.01] active:scale-98 cursor-pointer'
+                        : 'text-slate-500 cursor-not-allowed'
                     }`}
                     style={{
-                      background:
-                        players.length >= 3 ? 'linear-gradient(to right, #b30000, #e60000)' : undefined,
-                      boxShadow: players.length >= 3 ? '0 6px 22px rgba(230, 0, 0, 0.45)' : undefined,
-                      fontSize: 18
+                      backgroundColor: 'transparent',
+                      border: players.length >= 3 ? '2px solid #e60000' : '1.5px solid rgba(255, 255, 255, 0.2)',
+                      fontSize: 18,
+                      textShadow: players.length >= 3 ? '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 14px rgba(230, 0, 0, 0.7)' : 'none'
                     }}
                   >
                     <Play className="w-5 h-5 fill-current" />

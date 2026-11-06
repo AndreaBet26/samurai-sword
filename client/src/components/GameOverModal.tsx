@@ -292,27 +292,27 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           scores.playerScores.map((p, idx) => {
             const rowY = ROW_Y[idx] ?? (1153 + idx * 95);
 
-            // Stile distintivo badge ruolo con sfumature
-            let badgeBg = 'linear-gradient(135deg, #374151, #1F2937)';
+            // Stile distintivo badge ruolo trasparente impresso sulla tabella
+            let badgeBg = 'transparent';
             let badgeBorder = 'rgba(156, 163, 175, 0.5)';
             let badgeTextColor = '#FFFFFF';
 
             if (p.role.id === 'shogun') {
-              badgeBg = 'linear-gradient(135deg, #D97706, #F59E0B)';
+              badgeBg = 'transparent';
               badgeBorder = '#FCD34D';
-              badgeTextColor = '#1A120B';
+              badgeTextColor = '#FCD34D';
             } else if (p.role.id === 'samurai') {
-              badgeBg = 'linear-gradient(135deg, #92400E, #B45309)';
+              badgeBg = 'transparent';
               badgeBorder = '#FBBF24';
-              badgeTextColor = '#FEF3C7';
+              badgeTextColor = '#FBBF24';
             } else if (p.role.id === 'ninja') {
-              badgeBg = 'linear-gradient(135deg, #1E40AF, #2563EB)';
+              badgeBg = 'transparent';
               badgeBorder = '#60A5FA';
-              badgeTextColor = '#FFFFFF';
+              badgeTextColor = '#60A5FA';
             } else if (p.role.id === 'ronin') {
-              badgeBg = 'linear-gradient(135deg, #991B1B, #DC2626)';
+              badgeBg = 'transparent';
               badgeBorder = '#F87171';
-              badgeTextColor = '#FFFFFF';
+              badgeTextColor = '#F87171';
             }
 
             return (
