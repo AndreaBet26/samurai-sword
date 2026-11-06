@@ -478,13 +478,17 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </span>
               </div>
 
-              {/* Lista giocatori diretta: zero barre di scorrimento / slider */}
-              <div className="flex flex-col">
+              {/* Lista giocatori: altezza fissa calcolata esattamente per 7 giocatori (il tasto Inizia rimane fermo) */}
+              <div
+                className="flex flex-col"
+                style={{ height: 392 }}
+              >
                 {players.map((p) => (
                   <div
                     key={p.id}
-                    className="py-2.5 px-3 rounded-lg flex items-center justify-between transition-colors hover:bg-white/5"
+                    className="px-3 rounded-lg flex items-center justify-between transition-colors hover:bg-white/5"
                     style={{
+                      height: 56,
                       backgroundColor: 'transparent',
                       borderBottom: '1.5px solid rgba(255, 255, 255, 0.12)',
                       textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
