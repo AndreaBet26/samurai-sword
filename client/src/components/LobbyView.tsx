@@ -363,147 +363,199 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         ) : (
           /* ===================== STANZA DI ATTESA (SALA D'ATTESA LOBBY) ===================== */
+          /* Rework estetico: scala 4K maestosa, niente box squadrati, elementi grandi e leggibili */
           <div
-            className="absolute flex flex-col justify-between"
+            className="absolute flex flex-col justify-between select-none"
             style={{
-              left: 1440,
-              top: 860,
-              width: 960,
-              height: 780,
+              left: 1170,
+              top: 600,
+              width: 1500,
+              height: 1360,
               backgroundColor: 'transparent',
               border: 'none',
               boxShadow: 'none',
               backdropFilter: 'none',
-              padding: '25px 30px'
+              padding: '10px 20px'
             }}
           >
-            {/* Header Stanza & Condivisione - Trasparente */}
+            {/* 1. HEADER: CODICE STANZA & CONDIVISIONE (Niente box, linea dorata calligrafica) */}
             <div
-              className="flex items-center justify-between p-4 rounded-2xl"
+              className="flex items-center justify-between pb-8"
               style={{
-                backgroundColor: 'transparent',
-                border: '1.5px solid rgba(255, 255, 255, 0.35)',
-                textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
+                borderBottom: '2.5px solid rgba(212, 175, 55, 0.45)',
+                textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
               }}
             >
-              <div>
+              <div className="flex flex-col gap-1">
                 <span
-                  className="uppercase font-bold block"
-                  style={{ fontSize: 13, color: '#e2e8f0', letterSpacing: '0.08em' }}
+                  className="uppercase font-bold tracking-widest"
+                  style={{ fontSize: 22, color: '#cbd5e1', letterSpacing: '0.14em' }}
                 >
                   CODICE STANZA DA CONDIVIDERE
                 </span>
                 <span
-                  className="font-mono font-black text-amber-400 tracking-widest"
-                  style={{ fontSize: 32, textShadow: '0 0 12px rgba(245, 158, 11, 0.5)' }}
+                  className="font-mono font-black text-amber-400 tracking-[0.2em]"
+                  style={{
+                    fontSize: 70,
+                    lineHeight: 1.1,
+                    textShadow: '0 0 25px rgba(245, 158, 11, 0.65), 0 4px 12px rgba(0, 0, 0, 0.9)'
+                  }}
                 >
                   {currentRoomCode}
                 </span>
               </div>
-              <div className="flex items-center gap-3">
+
+              <div className="flex items-center gap-5">
                 <button
+                  type="button"
                   onClick={() => copy(currentRoomCode, 'code')}
-                  className="px-4 py-2.5 rounded-xl font-semibold text-slate-100 transition-all flex items-center gap-2 cursor-pointer hover:bg-white/10 active:scale-95"
+                  className="px-7 py-4 rounded-full font-bold text-slate-100 transition-all flex items-center gap-3 cursor-pointer hover:bg-white/15 active:scale-95"
                   style={{
-                    backgroundColor: 'transparent',
-                    border: '1.5px solid rgba(255, 255, 255, 0.4)',
-                    fontSize: 16
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: '2px solid rgba(255, 255, 255, 0.3)',
+                    fontSize: 22,
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)'
                   }}
                   title="Copia il codice della stanza"
                 >
-                  {copied === 'code' ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
-                  <span>{copied === 'code' ? 'Copiato!' : 'Codice'}</span>
+                  {copied === 'code' ? (
+                    <Check style={{ width: 28, height: 28, color: '#4ade80' }} />
+                  ) : (
+                    <Copy style={{ width: 28, height: 28, color: '#e2e8f0' }} />
+                  )}
+                  <span>{copied === 'code' ? 'Copiato!' : 'Copia Codice'}</span>
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => copy(inviteLink, 'link')}
-                  className="px-5 py-2.5 rounded-xl font-bold text-amber-300 transition-all flex items-center gap-2 cursor-pointer hover:bg-amber-950/30 active:scale-95"
+                  className="px-8 py-4 rounded-full font-extrabold text-slate-950 transition-all flex items-center gap-3 cursor-pointer hover:brightness-110 active:scale-95"
                   style={{
-                    backgroundColor: 'transparent',
-                    border: '2px solid #f59e0b',
-                    fontSize: 16,
-                    textShadow: '0 0 10px rgba(245, 158, 11, 0.6)'
+                    background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                    fontSize: 22,
+                    boxShadow: '0 6px 22px rgba(245, 158, 11, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8)'
                   }}
                   title="Copia il link d'invito online diretto"
                 >
-                  {copied === 'link' ? <Check className="w-5 h-5" /> : <Link2 className="w-5 h-5" />}
-                  <span>{copied === 'link' ? 'Copiato!' : 'Copia link invito'}</span>
+                  {copied === 'link' ? (
+                    <Check style={{ width: 28, height: 28, color: '#1a120b' }} />
+                  ) : (
+                    <Link2 style={{ width: 28, height: 28, color: '#1a120b' }} />
+                  )}
+                  <span>{copied === 'link' ? 'Copiato!' : 'Copia Link Invito'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Lista Guerrieri in Attesa */}
-            <div className="flex flex-col flex-1 my-3 overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
+            {/* 2. LISTA GUERRIERI IN ATTESA (Ampia, leggibile, senza scatole) */}
+            <div className="flex flex-col flex-1 my-6 overflow-hidden">
+              <div className="flex items-center justify-between pb-3">
                 <span
-                  className="font-bold uppercase tracking-wider"
-                  style={{ fontSize: 14, color: '#e2e8f0', textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}
+                  className="font-black uppercase tracking-wider flex items-center gap-3"
+                  style={{
+                    fontSize: 28,
+                    color: '#f8fafc',
+                    letterSpacing: '0.08em',
+                    textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                  }}
                 >
-                  Guerrieri in Attesa ({players.length} / 7)
+                  <Users style={{ width: 34, height: 34, color: '#f59e0b' }} />
+                  <span>GUERRIERI IN ATTESA ({players.length} / 7)</span>
                 </span>
-                <span style={{ fontSize: 13, color: '#cbd5e1', textShadow: '0 2px 8px rgba(0,0,0,0.9)' }}>
-                  Minimo 3 giocatori per avviare
+                <span
+                  className="font-medium"
+                  style={{
+                    fontSize: 22,
+                    color: players.length >= 3 ? '#86efac' : '#fca5a5',
+                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
+                  }}
+                >
+                  {players.length >= 3 ? 'Pronto per la battaglia!' : 'Minimo 3 giocatori per avviare'}
                 </span>
               </div>
 
+              {/* Contenitore giocatori scrollabile e spazioso */}
               <div
-                className="space-y-2 overflow-y-auto pr-1"
-                style={{ maxHeight: 220 }}
+                className="space-y-3 overflow-y-auto pr-3"
+                style={{ maxHeight: 440 }}
               >
                 {players.map((p) => (
                   <div
                     key={p.id}
-                    className="p-3 rounded-xl flex items-center justify-between"
+                    className="py-4 px-6 rounded-2xl flex items-center justify-between transition-colors hover:bg-white/5"
                     style={{
                       backgroundColor: 'transparent',
-                      border: '1px solid rgba(255, 255, 255, 0.25)',
-                      textShadow: '0 2px 6px rgba(0, 0, 0, 0.9)'
+                      borderBottom: '1.5px solid rgba(255, 255, 255, 0.15)',
+                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
                     }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-5">
                       {p.isBot ? (
-                        <Bot className="w-6 h-6 text-sky-400" />
+                        <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center"
+                          style={{
+                            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                            border: '1.5px solid rgba(56, 189, 248, 0.5)'
+                          }}
+                        >
+                          <Bot style={{ width: 32, height: 32, color: '#38bdf8' }} />
+                        </div>
                       ) : (
-                        <Users className="w-6 h-6 text-amber-400" />
+                        <div
+                          className="w-14 h-14 rounded-full flex items-center justify-center"
+                          style={{
+                            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                            border: '1.5px solid rgba(245, 158, 11, 0.5)'
+                          }}
+                        >
+                          <Users style={{ width: 30, height: 30, color: '#f59e0b' }} />
+                        </div>
                       )}
-                      <span className="font-bold text-slate-100" style={{ fontSize: 18 }}>
+                      <span
+                        className="font-extrabold text-slate-100 tracking-wide"
+                        style={{ fontSize: 32 }}
+                      >
                         {p.name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="flex items-center gap-4">
                       {p.isHost && (
                         <span
-                          className="font-bold px-3 py-0.5 rounded-full"
+                          className="font-bold px-5 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5"
                           style={{
-                            fontSize: 12,
-                            backgroundColor: 'transparent',
+                            fontSize: 18,
+                            backgroundColor: 'rgba(217, 119, 6, 0.25)',
                             color: '#fcd34d',
-                            border: '1.5px solid #fcd34d'
+                            border: '1.5px solid #d97706',
+                            textShadow: '0 0 10px rgba(245, 158, 11, 0.5)'
                           }}
                         >
-                          Capostanza
+                          ★ Capostanza
                         </span>
                       )}
                       {p.isBot && (
                         <span
-                          className="font-semibold px-3 py-0.5 rounded-full flex items-center gap-1"
+                          className="font-bold px-5 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-2"
                           style={{
-                            fontSize: 12,
-                            backgroundColor: 'transparent',
-                            color: '#94a3b8',
-                            border: '1px solid #94a3b8'
+                            fontSize: 18,
+                            backgroundColor: 'rgba(14, 116, 144, 0.25)',
+                            color: '#7dd3fc',
+                            border: '1.5px solid #0284c7'
                           }}
                         >
-                          <Bot className="w-3.5 h-3.5" />
+                          <Bot style={{ width: 20, height: 20 }} />
                           IA
                         </span>
                       )}
                       {isHost && p.id !== myId && !p.isHost && (
                         <button
+                          type="button"
                           onClick={() => removePlayer(p.id)}
-                          className="text-slate-400 hover:text-red-400 transition-colors cursor-pointer p-1"
+                          className="text-slate-400 hover:text-red-400 hover:scale-110 transition-all cursor-pointer p-2"
                           title={`Togli ${p.name} dalla stanza`}
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 style={{ width: 28, height: 28 }} />
                         </button>
                       )}
                     </div>
@@ -512,29 +564,29 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            {/* Impostazioni Stanza - Trasparente */}
+            {/* 3. IMPOSTAZIONI STANZA (Grandi e pulite, nessun riquadro chiuso) */}
             <div
-              className="p-3 rounded-xl mb-3 space-y-2"
+              className="py-5 my-2 space-y-4"
               style={{
-                backgroundColor: 'transparent',
-                border: '1.5px solid rgba(255, 255, 255, 0.3)',
-                textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
+                borderTop: '2px solid rgba(212, 175, 55, 0.35)',
+                borderBottom: '2px solid rgba(212, 175, 55, 0.35)',
+                textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
               }}
             >
               {(
                 [
                   {
                     key: 'turnTimer' as const,
-                    label: 'Tempo per turno',
+                    label: 'Tempo per Turno',
                     options: [
-                      ['60', '1 minuto'],
-                      ['120', '2 minuti'],
-                      ['off', 'Nessun limite']
+                      ['60', '1 Minuto'],
+                      ['120', '2 Minuti'],
+                      ['off', 'Nessun Limite']
                     ]
                   },
                   {
                     key: 'animSpeed' as const,
-                    label: 'Animazioni',
+                    label: 'Velocità Animazioni',
                     options: [
                       ['normal', 'Normali'],
                       ['fast', 'Veloci']
@@ -542,29 +594,37 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   }
                 ] as const
               ).map((row) => (
-                <div key={row.key} className="flex items-center justify-between">
+                <div key={row.key} className="flex items-center justify-between px-2">
                   <span
                     className="font-bold uppercase tracking-wider"
-                    style={{ fontSize: 13, color: '#e2e8f0' }}
+                    style={{ fontSize: 24, color: '#f1f5f9', letterSpacing: '0.06em' }}
                   >
                     {row.label}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {row.options.map(([value, text]) => {
                       const active = settings[row.key] === value;
                       return (
                         <button
                           key={value}
+                          type="button"
                           disabled={!isHost}
                           onClick={() => updateSettings({ [row.key]: value } as Partial<RoomSettings>)}
-                          className={`font-semibold px-3 py-1 rounded-lg transition-colors ${
+                          className={`font-bold px-6 py-2.5 rounded-full transition-all ${
                             active
-                              ? 'bg-amber-500 text-slate-950 font-bold'
+                              ? 'text-slate-950 font-black scale-105'
                               : isHost
-                              ? 'text-slate-300 hover:text-white cursor-pointer bg-transparent border border-white/20'
-                              : 'text-slate-500 bg-transparent border border-white/10'
+                              ? 'text-slate-300 hover:text-white cursor-pointer bg-white/5 hover:bg-white/10'
+                              : 'text-slate-500 bg-transparent'
                           }`}
-                          style={{ fontSize: 13 }}
+                          style={{
+                            fontSize: 20,
+                            background: active
+                              ? 'linear-gradient(135deg, #d97706, #f59e0b)'
+                              : 'transparent',
+                            boxShadow: active ? '0 4px 16px rgba(245, 158, 11, 0.4)' : 'none',
+                            border: active ? 'none' : '1.5px solid rgba(255, 255, 255, 0.2)'
+                          }}
                         >
                           {text}
                         </button>
@@ -575,24 +635,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               ))}
             </div>
 
-            {/* Controlli di Avvio */}
-            <div className="flex flex-col gap-2.5">
+            {/* 4. CONTROLLI DI AVVIO (Grandi pulsanti maestosi a pillola) */}
+            <div className="flex flex-col gap-4 pt-3">
               {isHost && (
                 <>
                   {players.length < 7 && (
                     <button
                       type="button"
                       onClick={handleAddBot}
-                      className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 cursor-pointer hover:bg-sky-950/30 active:scale-98"
+                      className="w-full py-4 rounded-full font-bold transition-all flex items-center justify-center gap-3 cursor-pointer hover:brightness-115 active:scale-98"
                       style={{
-                        backgroundColor: 'transparent',
-                        border: '1.5px solid #38bdf8',
+                        background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.35), rgba(3, 105, 161, 0.55))',
+                        border: '1.5px solid rgba(56, 189, 248, 0.6)',
                         color: '#bae6fd',
-                        fontSize: 15,
-                        textShadow: '0 0 10px rgba(56, 189, 248, 0.5)'
+                        fontSize: 24,
+                        letterSpacing: '0.04em',
+                        boxShadow: '0 6px 20px rgba(2, 132, 199, 0.3)',
+                        textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
                       }}
                     >
-                      <Bot className="w-5 h-5 text-sky-400" />
+                      <Bot style={{ width: 28, height: 28, color: '#38bdf8' }} />
                       <span>Aggiungi Giocatore Bot (IA)</span>
                     </button>
                   )}
@@ -601,41 +663,61 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                     type="button"
                     onClick={handleStartGame}
                     disabled={players.length < 3}
-                    className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2.5 transition-all ${
+                    className={`w-full py-5 rounded-full font-black flex items-center justify-center gap-4 transition-all ${
                       players.length >= 3
-                        ? 'text-white hover:scale-[1.01] active:scale-98 cursor-pointer'
-                        : 'text-slate-500 cursor-not-allowed'
+                        ? 'text-white cursor-pointer hover:brightness-115 hover:scale-[1.01] active:scale-98'
+                        : 'text-slate-400 cursor-not-allowed bg-black/40'
                     }`}
                     style={{
-                      backgroundColor: 'transparent',
-                      border: players.length >= 3 ? '2px solid #e60000' : '1.5px solid rgba(255, 255, 255, 0.2)',
-                      fontSize: 18,
-                      textShadow: players.length >= 3 ? '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 14px rgba(230, 0, 0, 0.7)' : 'none'
+                      fontSize: 30,
+                      letterSpacing: '0.06em',
+                      background:
+                        players.length >= 3
+                          ? 'linear-gradient(135deg, #b30000, #e60000)'
+                          : 'rgba(255, 255, 255, 0.05)',
+                      border: players.length >= 3 ? 'none' : '1.5px solid rgba(255, 255, 255, 0.15)',
+                      boxShadow:
+                        players.length >= 3
+                          ? '0 10px 32px rgba(230, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.9)'
+                          : 'none',
+                      textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
                     }}
                   >
-                    <Play className="w-5 h-5 fill-current" />
-                    <span>{players.length >= 3 ? 'Inizia la Battaglia!' : 'Servono almeno 3 giocatori'}</span>
+                    <Play style={{ width: 32, height: 32 }} fill="currentColor" />
+                    <span>
+                      {players.length >= 3
+                        ? 'INIZIA LA BATTAGLIA!'
+                        : `SERVONO ALMENO 3 GIOCATORI (${players.length} / 3)`}
+                    </span>
                   </button>
                 </>
               )}
 
               {!isHost && (
                 <div
-                  className="text-center font-medium italic py-2"
-                  style={{ fontSize: 15, color: '#a0aec0' }}
+                  className="text-center font-bold italic py-4"
+                  style={{
+                    fontSize: 24,
+                    color: '#fde68a',
+                    textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                  }}
                 >
-                  In attesa che il capostanza avvii la partita...
+                  In attesa che il capostanza avvii la battaglia...
                 </div>
               )}
 
-              <div className="flex justify-center pt-1">
+              <div className="flex justify-center pt-2">
                 <button
                   type="button"
                   onClick={onOpenRules}
-                  className="font-semibold text-slate-400 hover:text-amber-400 hover:underline flex items-center gap-2 transition-colors cursor-pointer"
-                  style={{ fontSize: 15 }}
+                  className="font-bold text-slate-300 hover:text-amber-300 hover:underline flex items-center gap-3 transition-colors cursor-pointer"
+                  style={{
+                    fontSize: 22,
+                    letterSpacing: '0.04em',
+                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
+                  }}
                 >
-                  <BookOpen className="w-4 h-4" />
+                  <BookOpen style={{ width: 26, height: 26 }} />
                   <span>Leggi il Regolamento Ufficiale</span>
                 </button>
               </div>
