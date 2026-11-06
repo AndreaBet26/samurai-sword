@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: samurai-sword-game
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    healthCheckPath: /health
