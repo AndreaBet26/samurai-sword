@@ -113,26 +113,43 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex items-center justify-center bg-[#07090e]"
-      style={{
-        backgroundImage:
-          'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
+      className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex flex-row items-center justify-center bg-[#07090e]"
     >
-      {/* Canvas interattivo (3840 x 2160) scalato con Math.min per allinearsi perfettamente allo sfondo a tutto schermo */}
+      {/* 1. BANDA LATERALE SINISTRA GENERATA (foresta di bambù, cielo crepuscolare, onde dorate seigaiha) */}
       <div
-        className="relative overflow-hidden shrink-0 pointer-events-auto"
+        className="h-full flex-1 pointer-events-none"
         style={{
-          width: 3840,
-          height: 2160,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
-          fontFamily: "'Montserrat', sans-serif"
+          backgroundImage:
+            'url(/assets/ui/lobby_band_left.webp), url(/assets/ui/lobby_band_left.png)',
+          backgroundSize: 'auto 100%',
+          backgroundPosition: 'right center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      />
+
+      {/* 2. OPERA D'ARTE CENTRALE 16:9 NELLE SUE DIMENSIONI ORIGINALI (MAI TAGLIATA) */}
+      <div
+        className="relative shrink-0 flex items-center justify-center pointer-events-auto"
+        style={{
+          width: 3840 * scale,
+          height: 2160 * scale
         }}
       >
+        <div
+          className="absolute overflow-hidden"
+          style={{
+            width: 3840,
+            height: 2160,
+            backgroundImage:
+              'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
+            backgroundSize: '100% 100%',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            transform: `scale(${scale})`,
+            transformOrigin: 'center center',
+            fontFamily: "'Montserrat', sans-serif"
+          }}
+        >
         {!currentRoomCode ? (
           /* ===================== SCHERMATA INIZIALE: NESSUN BOX O RIQUADRO ARTIFICIALE ===================== */
           /* Gli elementi appaiono direttamente impressi sullo sfondo ("stampati sul foglio") */
@@ -707,7 +724,20 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         >
           <BookOpen style={{ width: 34, height: 34, color: '#fcd34d' }} />
         </button>
+        </div>
       </div>
+
+      {/* 3. BANDA LATERALE DESTRA GENERATA (rami di ciliegio sakura, petali, bambù, onde dorate seigaiha) */}
+      <div
+        className="h-full flex-1 pointer-events-none"
+        style={{
+          backgroundImage:
+            'url(/assets/ui/lobby_band_right.webp), url(/assets/ui/lobby_band_right.png)',
+          backgroundSize: 'auto 100%',
+          backgroundPosition: 'left center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      />
     </div>
   );
 };
