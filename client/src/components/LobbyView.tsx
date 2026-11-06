@@ -363,65 +363,65 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         ) : (
           /* ===================== STANZA DI ATTESA (SALA D'ATTESA LOBBY) ===================== */
-          /* Rework estetico: scala 4K maestosa, niente box squadrati, elementi grandi e leggibili */
+          /* Rework estetico: dimensioni calibrate per stare perfettamente nei limiti dell'immagine 4K */
           <div
             className="absolute flex flex-col justify-between select-none"
             style={{
-              left: 1170,
-              top: 600,
-              width: 1500,
-              height: 1360,
+              left: 1300,
+              top: 740,
+              width: 1240,
+              height: 1140,
               backgroundColor: 'transparent',
               border: 'none',
               boxShadow: 'none',
               backdropFilter: 'none',
-              padding: '10px 20px'
+              padding: '10px 15px'
             }}
           >
-            {/* 1. HEADER: CODICE STANZA & CONDIVISIONE (Niente box, linea dorata calligrafica) */}
+            {/* 1. HEADER: CODICE STANZA & CONDIVISIONE (Perfettamente allineato nel canyon centrale) */}
             <div
-              className="flex items-center justify-between pb-8"
+              className="flex items-center justify-between pb-5"
               style={{
-                borderBottom: '2.5px solid rgba(212, 175, 55, 0.45)',
+                borderBottom: '2px solid rgba(212, 175, 55, 0.45)',
                 textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
               }}
             >
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col">
                 <span
                   className="uppercase font-bold tracking-widest"
-                  style={{ fontSize: 22, color: '#cbd5e1', letterSpacing: '0.14em' }}
+                  style={{ fontSize: 18, color: '#cbd5e1', letterSpacing: '0.12em' }}
                 >
                   CODICE STANZA DA CONDIVIDERE
                 </span>
                 <span
-                  className="font-mono font-black text-amber-400 tracking-[0.2em]"
+                  className="font-mono font-black text-amber-400 tracking-[0.18em]"
                   style={{
-                    fontSize: 70,
-                    lineHeight: 1.1,
-                    textShadow: '0 0 25px rgba(245, 158, 11, 0.65), 0 4px 12px rgba(0, 0, 0, 0.9)'
+                    fontSize: 54,
+                    lineHeight: 1.15,
+                    textShadow: '0 0 20px rgba(245, 158, 11, 0.6), 0 4px 10px rgba(0, 0, 0, 0.9)'
                   }}
                 >
                   {currentRoomCode}
                 </span>
               </div>
 
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-4">
                 <button
                   type="button"
                   onClick={() => copy(currentRoomCode, 'code')}
-                  className="px-7 py-4 rounded-full font-bold text-slate-100 transition-all flex items-center gap-3 cursor-pointer hover:bg-white/15 active:scale-95"
+                  className="px-6 py-3 rounded-full font-bold text-slate-100 transition-all flex items-center gap-2.5 cursor-pointer hover:bg-white/15 active:scale-95"
                   style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    border: '2px solid rgba(255, 255, 255, 0.3)',
-                    fontSize: 22,
-                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)'
+                    border: '1.5px solid rgba(255, 255, 255, 0.3)',
+                    fontSize: 18,
+                    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)'
                   }}
                   title="Copia il codice della stanza"
                 >
                   {copied === 'code' ? (
-                    <Check style={{ width: 28, height: 28, color: '#4ade80' }} />
+                    <Check style={{ width: 22, height: 22, color: '#4ade80' }} />
                   ) : (
-                    <Copy style={{ width: 28, height: 28, color: '#e2e8f0' }} />
+                    <Copy style={{ width: 22, height: 22, color: '#e2e8f0' }} />
                   )}
                   <span>{copied === 'code' ? 'Copiato!' : 'Copia Codice'}</span>
                 </button>
@@ -429,18 +429,18 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <button
                   type="button"
                   onClick={() => copy(inviteLink, 'link')}
-                  className="px-8 py-4 rounded-full font-extrabold text-slate-950 transition-all flex items-center gap-3 cursor-pointer hover:brightness-110 active:scale-95"
+                  className="px-7 py-3 rounded-full font-black text-slate-950 transition-all flex items-center gap-2.5 cursor-pointer hover:brightness-110 active:scale-95"
                   style={{
                     background: 'linear-gradient(135deg, #d97706, #f59e0b)',
-                    fontSize: 22,
-                    boxShadow: '0 6px 22px rgba(245, 158, 11, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8)'
+                    fontSize: 18,
+                    boxShadow: '0 6px 20px rgba(245, 158, 11, 0.4), 0 2px 6px rgba(0, 0, 0, 0.8)'
                   }}
                   title="Copia il link d'invito online diretto"
                 >
                   {copied === 'link' ? (
-                    <Check style={{ width: 28, height: 28, color: '#1a120b' }} />
+                    <Check style={{ width: 22, height: 22, color: '#1a120b' }} />
                   ) : (
-                    <Link2 style={{ width: 28, height: 28, color: '#1a120b' }} />
+                    <Link2 style={{ width: 22, height: 22, color: '#1a120b' }} />
                   )}
                   <span>{copied === 'link' ? 'Copiato!' : 'Copia Link Invito'}</span>
                 </button>
@@ -448,24 +448,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
 
             {/* 2. LISTA GUERRIERI IN ATTESA (Ampia, leggibile, senza scatole) */}
-            <div className="flex flex-col flex-1 my-6 overflow-hidden">
-              <div className="flex items-center justify-between pb-3">
+            <div className="flex flex-col flex-1 my-4 overflow-hidden">
+              <div className="flex items-center justify-between pb-2">
                 <span
-                  className="font-black uppercase tracking-wider flex items-center gap-3"
+                  className="font-black uppercase tracking-wider flex items-center gap-2.5"
                   style={{
-                    fontSize: 28,
+                    fontSize: 22,
                     color: '#f8fafc',
                     letterSpacing: '0.08em',
                     textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
                   }}
                 >
-                  <Users style={{ width: 34, height: 34, color: '#f59e0b' }} />
+                  <Users style={{ width: 26, height: 26, color: '#f59e0b' }} />
                   <span>GUERRIERI IN ATTESA ({players.length} / 7)</span>
                 </span>
                 <span
-                  className="font-medium"
+                  className="font-semibold"
                   style={{
-                    fontSize: 22,
+                    fontSize: 18,
                     color: players.length >= 3 ? '#86efac' : '#fca5a5',
                     textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
                   }}
@@ -474,61 +474,61 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </span>
               </div>
 
-              {/* Contenitore giocatori scrollabile e spazioso */}
+              {/* Contenitore giocatori scrollabile e pulito */}
               <div
-                className="space-y-3 overflow-y-auto pr-3"
-                style={{ maxHeight: 440 }}
+                className="space-y-2 overflow-y-auto pr-2"
+                style={{ maxHeight: 360 }}
               >
                 {players.map((p) => (
                   <div
                     key={p.id}
-                    className="py-4 px-6 rounded-2xl flex items-center justify-between transition-colors hover:bg-white/5"
+                    className="py-3 px-4 rounded-xl flex items-center justify-between transition-colors hover:bg-white/5"
                     style={{
                       backgroundColor: 'transparent',
-                      borderBottom: '1.5px solid rgba(255, 255, 255, 0.15)',
+                      borderBottom: '1.5px solid rgba(255, 255, 255, 0.14)',
                       textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
                     }}
                   >
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-4">
                       {p.isBot ? (
                         <div
-                          className="w-14 h-14 rounded-full flex items-center justify-center"
+                          className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
                           style={{
                             backgroundColor: 'rgba(56, 189, 248, 0.15)',
                             border: '1.5px solid rgba(56, 189, 248, 0.5)'
                           }}
                         >
-                          <Bot style={{ width: 32, height: 32, color: '#38bdf8' }} />
+                          <Bot style={{ width: 24, height: 24, color: '#38bdf8' }} />
                         </div>
                       ) : (
                         <div
-                          className="w-14 h-14 rounded-full flex items-center justify-center"
+                          className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
                           style={{
                             backgroundColor: 'rgba(245, 158, 11, 0.15)',
                             border: '1.5px solid rgba(245, 158, 11, 0.5)'
                           }}
                         >
-                          <Users style={{ width: 30, height: 30, color: '#f59e0b' }} />
+                          <Users style={{ width: 22, height: 22, color: '#f59e0b' }} />
                         </div>
                       )}
                       <span
                         className="font-extrabold text-slate-100 tracking-wide"
-                        style={{ fontSize: 32 }}
+                        style={{ fontSize: 26 }}
                       >
                         {p.name}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       {p.isHost && (
                         <span
-                          className="font-bold px-5 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5"
+                          className="font-bold px-4 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5"
                           style={{
-                            fontSize: 18,
+                            fontSize: 15,
                             backgroundColor: 'rgba(217, 119, 6, 0.25)',
                             color: '#fcd34d',
                             border: '1.5px solid #d97706',
-                            textShadow: '0 0 10px rgba(245, 158, 11, 0.5)'
+                            textShadow: '0 0 8px rgba(245, 158, 11, 0.4)'
                           }}
                         >
                           ★ Capostanza
@@ -536,15 +536,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       )}
                       {p.isBot && (
                         <span
-                          className="font-bold px-5 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-2"
+                          className="font-bold px-4 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5"
                           style={{
-                            fontSize: 18,
+                            fontSize: 15,
                             backgroundColor: 'rgba(14, 116, 144, 0.25)',
                             color: '#7dd3fc',
                             border: '1.5px solid #0284c7'
                           }}
                         >
-                          <Bot style={{ width: 20, height: 20 }} />
+                          <Bot style={{ width: 16, height: 16 }} />
                           IA
                         </span>
                       )}
@@ -552,10 +552,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         <button
                           type="button"
                           onClick={() => removePlayer(p.id)}
-                          className="text-slate-400 hover:text-red-400 hover:scale-110 transition-all cursor-pointer p-2"
+                          className="text-slate-400 hover:text-red-400 hover:scale-110 transition-all cursor-pointer p-1.5"
                           title={`Togli ${p.name} dalla stanza`}
                         >
-                          <Trash2 style={{ width: 28, height: 28 }} />
+                          <Trash2 style={{ width: 22, height: 22 }} />
                         </button>
                       )}
                     </div>
@@ -564,12 +564,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             </div>
 
-            {/* 3. IMPOSTAZIONI STANZA (Grandi e pulite, nessun riquadro chiuso) */}
+            {/* 3. IMPOSTAZIONI STANZA (Armonizzate, senza box rigidi) */}
             <div
-              className="py-5 my-2 space-y-4"
+              className="py-4 my-2 space-y-3"
               style={{
-                borderTop: '2px solid rgba(212, 175, 55, 0.35)',
-                borderBottom: '2px solid rgba(212, 175, 55, 0.35)',
+                borderTop: '1.5px solid rgba(212, 175, 55, 0.35)',
+                borderBottom: '1.5px solid rgba(212, 175, 55, 0.35)',
                 textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
               }}
             >
@@ -597,11 +597,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <div key={row.key} className="flex items-center justify-between px-2">
                   <span
                     className="font-bold uppercase tracking-wider"
-                    style={{ fontSize: 24, color: '#f1f5f9', letterSpacing: '0.06em' }}
+                    style={{ fontSize: 20, color: '#f1f5f9', letterSpacing: '0.06em' }}
                   >
                     {row.label}
                   </span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     {row.options.map(([value, text]) => {
                       const active = settings[row.key] === value;
                       return (
@@ -610,7 +610,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           type="button"
                           disabled={!isHost}
                           onClick={() => updateSettings({ [row.key]: value } as Partial<RoomSettings>)}
-                          className={`font-bold px-6 py-2.5 rounded-full transition-all ${
+                          className={`font-bold px-5 py-2 rounded-full transition-all ${
                             active
                               ? 'text-slate-950 font-black scale-105'
                               : isHost
@@ -618,11 +618,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                               : 'text-slate-500 bg-transparent'
                           }`}
                           style={{
-                            fontSize: 20,
+                            fontSize: 17,
                             background: active
                               ? 'linear-gradient(135deg, #d97706, #f59e0b)'
                               : 'transparent',
-                            boxShadow: active ? '0 4px 16px rgba(245, 158, 11, 0.4)' : 'none',
+                            boxShadow: active ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
                             border: active ? 'none' : '1.5px solid rgba(255, 255, 255, 0.2)'
                           }}
                         >
@@ -635,26 +635,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               ))}
             </div>
 
-            {/* 4. CONTROLLI DI AVVIO (Grandi pulsanti maestosi a pillola) */}
-            <div className="flex flex-col gap-4 pt-3">
+            {/* 4. CONTROLLI DI AVVIO (Pulsanti maestosi all'interno della cornice sicura) */}
+            <div className="flex flex-col gap-3 pt-2">
               {isHost && (
                 <>
                   {players.length < 7 && (
                     <button
                       type="button"
                       onClick={handleAddBot}
-                      className="w-full py-4 rounded-full font-bold transition-all flex items-center justify-center gap-3 cursor-pointer hover:brightness-115 active:scale-98"
+                      className="w-full py-3.5 rounded-full font-bold transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:brightness-115 active:scale-98"
                       style={{
                         background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.35), rgba(3, 105, 161, 0.55))',
                         border: '1.5px solid rgba(56, 189, 248, 0.6)',
                         color: '#bae6fd',
-                        fontSize: 24,
+                        fontSize: 20,
                         letterSpacing: '0.04em',
-                        boxShadow: '0 6px 20px rgba(2, 132, 199, 0.3)',
+                        boxShadow: '0 6px 18px rgba(2, 132, 199, 0.3)',
                         textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
                       }}
                     >
-                      <Bot style={{ width: 28, height: 28, color: '#38bdf8' }} />
+                      <Bot style={{ width: 24, height: 24, color: '#38bdf8' }} />
                       <span>Aggiungi Giocatore Bot (IA)</span>
                     </button>
                   )}
@@ -663,13 +663,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                     type="button"
                     onClick={handleStartGame}
                     disabled={players.length < 3}
-                    className={`w-full py-5 rounded-full font-black flex items-center justify-center gap-4 transition-all ${
+                    className={`w-full py-4 rounded-full font-black flex items-center justify-center gap-3 transition-all ${
                       players.length >= 3
                         ? 'text-white cursor-pointer hover:brightness-115 hover:scale-[1.01] active:scale-98'
                         : 'text-slate-400 cursor-not-allowed bg-black/40'
                     }`}
                     style={{
-                      fontSize: 30,
+                      fontSize: 24,
                       letterSpacing: '0.06em',
                       background:
                         players.length >= 3
@@ -678,12 +678,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       border: players.length >= 3 ? 'none' : '1.5px solid rgba(255, 255, 255, 0.15)',
                       boxShadow:
                         players.length >= 3
-                          ? '0 10px 32px rgba(230, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.9)'
+                          ? '0 10px 30px rgba(230, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.9)'
                           : 'none',
                       textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
                     }}
                   >
-                    <Play style={{ width: 32, height: 32 }} fill="currentColor" />
+                    <Play style={{ width: 26, height: 26 }} fill="currentColor" />
                     <span>
                       {players.length >= 3
                         ? 'INIZIA LA BATTAGLIA!'
@@ -695,9 +695,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
               {!isHost && (
                 <div
-                  className="text-center font-bold italic py-4"
+                  className="text-center font-bold italic py-3"
                   style={{
-                    fontSize: 24,
+                    fontSize: 20,
                     color: '#fde68a',
                     textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
                   }}
@@ -706,18 +706,18 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-center pt-2">
+              <div className="flex justify-center pt-1">
                 <button
                   type="button"
                   onClick={onOpenRules}
-                  className="font-bold text-slate-300 hover:text-amber-300 hover:underline flex items-center gap-3 transition-colors cursor-pointer"
+                  className="font-bold text-slate-300 hover:text-amber-300 hover:underline flex items-center gap-2.5 transition-colors cursor-pointer"
                   style={{
-                    fontSize: 22,
+                    fontSize: 18,
                     letterSpacing: '0.04em',
                     textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
                   }}
                 >
-                  <BookOpen style={{ width: 26, height: 26 }} />
+                  <BookOpen style={{ width: 22, height: 22 }} />
                   <span>Leggi il Regolamento Ufficiale</span>
                 </button>
               </div>
