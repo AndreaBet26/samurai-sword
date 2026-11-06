@@ -113,18 +113,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex items-center justify-center bg-black"
-      style={{
-        backgroundImage:
-          'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
+      className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex items-center justify-center bg-[#07090e]"
     >
-      {/* Canvas 4K (3840 x 2160) scalato con Math.max per coprire l'intero schermo senza alcuna barra nera */}
+      {/* Fondale d'atmosfera cinematografico: estende morbidamente colori e luci su qualsiasi proporzione schermo senza sdoppiamenti né ritagli */}
       <div
-        className="relative overflow-hidden shrink-0"
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage:
+            'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(32px) brightness(0.35)',
+          transform: 'scale(1.08)'
+        }}
+      />
+
+      {/* Canvas 4K (3840 x 2160) scalato con Math.min: 100% dell'opera d'arte e dei controlli sempre visibile senza alcun ritaglio */}
+      <div
+        className="relative overflow-hidden shrink-0 z-10"
         style={{
           width: 3840,
           height: 2160,
