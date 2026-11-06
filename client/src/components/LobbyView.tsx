@@ -114,30 +114,20 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   return (
     <div
       className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex items-center justify-center bg-[#07090e]"
+      style={{
+        backgroundImage:
+          'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
     >
-      {/* Fondale d'atmosfera cinematografico: estende morbidamente colori e luci su qualsiasi proporzione schermo senza sdoppiamenti né ritagli */}
+      {/* Canvas interattivo (3840 x 2160) scalato con Math.min per allinearsi perfettamente allo sfondo a tutto schermo */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(32px) brightness(0.35)',
-          transform: 'scale(1.08)'
-        }}
-      />
-
-      {/* Canvas 4K (3840 x 2160) scalato con Math.min: 100% dell'opera d'arte e dei controlli sempre visibile senza alcun ritaglio */}
-      <div
-        className="relative overflow-hidden shrink-0 z-10"
+        className="relative overflow-hidden shrink-0 pointer-events-auto"
         style={{
           width: 3840,
           height: 2160,
-          backgroundImage:
-            'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
-          backgroundSize: '100% 100%',
-          backgroundPosition: 'center',
           transform: `scale(${scale})`,
           transformOrigin: 'center center',
           fontFamily: "'Montserrat', sans-serif"
