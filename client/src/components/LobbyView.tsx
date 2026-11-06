@@ -55,14 +55,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const invited = Boolean(codeFromUrl());
 
-  // Math.max assicura che l'immagine riempia il 100% della pagina (cover edge-to-edge, zero barre nere)
+  // Math.min assicura che l'intera opera d'arte 4K (3840 x 2160) sia visibile al 100% senza essere tagliata
   const [scale, setScale] = useState(() =>
-    Math.max(window.innerWidth / 3840, window.innerHeight / 2160)
+    Math.min(window.innerWidth / 3840, window.innerHeight / 2160)
   );
 
   useEffect(() => {
     const updateScale = () => {
-      setScale(Math.max(window.innerWidth / 3840, window.innerHeight / 2160));
+      setScale(Math.min(window.innerWidth / 3840, window.innerHeight / 2160));
     };
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
