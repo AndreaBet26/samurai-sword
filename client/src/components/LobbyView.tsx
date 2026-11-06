@@ -55,14 +55,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const invited = Boolean(codeFromUrl());
 
-  // Calcolo del fattore di scala per adattare la risoluzione 4K (3840 x 2160) a qualsiasi monitor
+  // Math.max assicura che l'immagine riempia il 100% della pagina (cover edge-to-edge, zero barre nere)
   const [scale, setScale] = useState(() =>
-    Math.min(window.innerWidth / 3840, window.innerHeight / 2160)
+    Math.max(window.innerWidth / 3840, window.innerHeight / 2160)
   );
 
   useEffect(() => {
     const updateScale = () => {
-      setScale(Math.min(window.innerWidth / 3840, window.innerHeight / 2160));
+      setScale(Math.max(window.innerWidth / 3840, window.innerHeight / 2160));
     };
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
@@ -112,10 +112,19 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const inviteLink = currentRoomCode ? `${publicBaseUrl}/?stanza=${currentRoomCode}` : '';
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center select-none animate-fadeIn">
-      {/* Canvas 4K (3840 x 2160) scalato per adattarsi perfettamente a qualsiasi schermo */}
+    <div
+      className="fixed inset-0 overflow-hidden select-none animate-fadeIn flex items-center justify-center bg-black"
+      style={{
+        backgroundImage:
+          'url(/assets/ui/lobby_background_4k.webp), url(/assets/ui/lobby_background_4k.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
+      {/* Canvas 4K (3840 x 2160) scalato con Math.max per coprire l'intero schermo senza alcuna barra nera */}
       <div
-        className="relative shadow-2xl overflow-hidden shrink-0"
+        className="relative overflow-hidden shrink-0"
         style={{
           width: 3840,
           height: 2160,
@@ -129,37 +138,37 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         }}
       >
         {!currentRoomCode ? (
-          /* ===================== 1. BOX DI LOGIN (SCHERMATA INIZIALE) ===================== */
+          /* ===================== SCHERMATA INIZIALE: NESSUN BOX O RIQUADRO ARTIFICIALE ===================== */
+          /* Gli elementi appaiono direttamente impressi sullo sfondo ("stampati sul foglio") */
           <div
-            className="absolute flex flex-col justify-between"
+            className="absolute"
             style={{
               left: 1490,
               top: 960,
               width: 860,
               height: 600,
-              backgroundColor: 'rgba(10, 15, 25, 0.85)',
-              border: '1px solid #1a2c42',
-              borderRadius: 24,
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85), 0 0 40px rgba(26, 44, 66, 0.3)',
-              backdropFilter: 'blur(12px)',
-              padding: '40px 40px 30px 40px'
+              backgroundColor: 'transparent',
+              border: 'none',
+              boxShadow: 'none',
+              backdropFilter: 'none',
+              padding: '20px 40px'
             }}
           >
             {/* Avviso o invito */}
             {notice && (
               <div
-                className="text-center font-semibold text-amber-400 bg-amber-950/60 border border-amber-600/60 rounded-xl py-2 px-3 mb-2"
-                style={{ fontSize: 16 }}
+                className="text-center font-bold text-amber-300 bg-amber-950/80 border border-amber-500/80 rounded-xl py-2 px-4 mb-3 shadow-lg"
+                style={{ fontSize: 18 }}
               >
                 {notice}
               </div>
             )}
             {invited && (
               <div
-                className="text-center font-semibold text-sky-300 bg-sky-950/60 border border-sky-600/60 rounded-xl py-2 px-3 mb-2"
-                style={{ fontSize: 16 }}
+                className="text-center font-bold text-sky-200 bg-sky-950/80 border border-sky-500/80 rounded-xl py-2 px-4 mb-3 shadow-lg"
+                style={{ fontSize: 18 }}
               >
-                Sei stato invitato nella stanza <span className="font-mono font-bold text-amber-400">{joinCode}</span>: inserisci il tuo nome e premi ENTRA.
+                Sei stato invitato nella stanza <span className="font-mono font-black text-amber-400">{joinCode}</span>: inserisci il tuo nome e premi ENTRA.
               </div>
             )}
 
@@ -168,11 +177,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               {/* Etichetta: IL TUO NOME GUERRIERO */}
               <label
                 htmlFor="input-player-name"
-                className="font-bold uppercase tracking-wider mb-2.5"
+                className="font-black uppercase tracking-wider mb-2.5"
                 style={{
-                  fontSize: 20,
-                  color: '#a0aec0',
-                  letterSpacing: '0.08em'
+                  fontSize: 22,
+                  color: '#e2e8f0',
+                  letterSpacing: '0.1em',
+                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 0, 0, 0.8)'
                 }}
               >
                 IL TUO NOME GUERRIERO
@@ -195,19 +205,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 style={{
                   width: 780,
                   height: 72,
-                  backgroundColor: '#05080f',
-                  border: '1px solid #1f3a60',
+                  backgroundColor: 'rgba(5, 8, 15, 0.75)',
+                  border: '1.5px solid #2b4c7e',
                   borderRadius: 16,
-                  color: '#f7fafc',
-                  fontSize: 24,
+                  color: '#fdf8e2',
+                  fontSize: 26,
                   fontWeight: 600,
                   paddingLeft: 24,
                   paddingRight: 24,
                   outline: 'none',
-                  transition: 'border-color 0.2s'
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.75), inset 0 2px 6px rgba(0, 0, 0, 0.6)',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = '#d69e2e')}
-                onBlur={(e) => (e.currentTarget.style.borderColor = '#1f3a60')}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#f59e0b';
+                  e.currentTarget.style.boxShadow = '0 0 18px rgba(245, 158, 11, 0.4)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#2b4c7e';
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.75), inset 0 2px 6px rgba(0, 0, 0, 0.6)';
+                }}
               />
             </div>
 
@@ -216,22 +233,24 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               className="flex items-center justify-between"
               style={{
                 width: 780,
-                marginTop: 20
+                marginTop: 36
               }}
             >
               {/* Pulsante: CREA NUOVA STANZA */}
               <button
                 type="button"
                 onClick={() => handleCreate()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer shadow-lg hover:brightness-110 active:scale-95"
+                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:brightness-115 active:scale-95"
                 style={{
                   width: 270,
                   height: 68,
                   background: 'linear-gradient(to right, #b30000, #e60000)',
                   borderRadius: 16,
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
                   fontSize: 18,
+                  letterSpacing: '0.04em',
                   gap: 10,
-                  boxShadow: '0 6px 20px rgba(230, 0, 0, 0.4)'
+                  boxShadow: '0 8px 24px rgba(230, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8)'
                 }}
               >
                 <img
@@ -242,7 +261,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <span>CREA NUOVA STANZA</span>
               </button>
 
-              {/* Pulsante/Input Codice: CODICE */}
+              {/* Input Codice: CODICE */}
               <input
                 type="text"
                 value={joinCode}
@@ -255,36 +274,44 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 style={{
                   width: 180,
                   height: 68,
-                  backgroundColor: '#0d131f',
-                  border: '1px solid #2d3748',
+                  backgroundColor: 'rgba(10, 16, 28, 0.85)',
+                  border: '1.5px solid #3a4a63',
                   borderRadius: 16,
                   color: '#f6ad55',
-                  fontSize: 20,
+                  fontSize: 22,
                   fontWeight: 700,
                   textAlign: 'center',
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
                   outline: 'none',
-                  transition: 'border-color 0.2s'
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.7)',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = '#d69e2e')}
-                onBlur={(e) => (e.currentTarget.style.borderColor = '#2d3748')}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#f59e0b';
+                  e.currentTarget.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.4)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#3a4a63';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.7)';
+                }}
               />
 
               {/* Pulsante: ENTRA */}
               <button
                 type="button"
                 onClick={() => handleJoin()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer shadow-lg hover:brightness-110 active:scale-95"
+                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-[#1a273f] hover:border-amber-300 active:scale-95"
                 style={{
                   width: 270,
                   height: 68,
-                  backgroundColor: '#141d2f',
+                  backgroundColor: 'rgba(20, 29, 47, 0.92)',
                   border: '1.5px solid #d69e2e',
                   borderRadius: 16,
                   fontSize: 18,
+                  letterSpacing: '0.04em',
                   gap: 10,
-                  boxShadow: '0 6px 20px rgba(20, 29, 47, 0.5)'
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6), 0 0 15px rgba(214, 158, 46, 0.25)'
                 }}
               >
                 <Users style={{ width: 22, height: 22, color: '#f6ad55' }} />
@@ -293,18 +320,19 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </div>
 
             {/* SEZIONE LINK INFORMATIVO IN BASSO */}
-            <div className="flex justify-center" style={{ marginTop: 15 }}>
+            <div className="flex justify-center" style={{ marginTop: 44 }}>
               <button
                 type="button"
                 onClick={onOpenRules}
-                className="font-semibold transition-colors cursor-pointer hover:text-amber-400 hover:underline flex items-center gap-2"
+                className="font-bold transition-all cursor-pointer hover:text-amber-300 hover:underline flex items-center gap-2"
                 style={{
-                  fontSize: 18,
-                  color: '#a0aec0',
-                  letterSpacing: '0.02em'
+                  fontSize: 20,
+                  color: '#cbd5e1',
+                  letterSpacing: '0.04em',
+                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 0, 0, 0.8)'
                 }}
               >
-                <BookOpen style={{ width: 20, height: 20 }} />
+                <BookOpen style={{ width: 22, height: 22 }} />
                 <span>Leggi il Regolamento Ufficiale</span>
               </button>
             </div>
