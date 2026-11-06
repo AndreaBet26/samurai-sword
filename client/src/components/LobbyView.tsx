@@ -182,7 +182,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
             )}
 
-            {/* SEZIONE INPUT NOME */}
+            {/* SEZIONE INPUT NOME - Senza alcun box, impresso direttamente sullo sfondo */}
             <div className="flex flex-col">
               {/* Etichetta: IL TUO NOME GUERRIERO */}
               <label
@@ -191,14 +191,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 style={{
                   fontSize: 22,
                   color: '#e2e8f0',
-                  letterSpacing: '0.1em',
+                  letterSpacing: '0.12em',
                   textShadow: '0 2px 10px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 0, 0, 0.8)'
                 }}
               >
                 IL TUO NOME GUERRIERO
               </label>
 
-              {/* Campo di Inserimento (Input Text) - Trasparente come stampato su foglio */}
+              {/* Campo di Inserimento (Input Text) - Puro testo con sottolineatura dorata calligrafica */}
               <input
                 id="input-player-name"
                 type="text"
@@ -214,121 +214,131 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 maxLength={20}
                 style={{
                   width: 780,
-                  height: 72,
+                  height: 64,
                   backgroundColor: 'transparent',
-                  border: '1.5px solid rgba(255, 255, 255, 0.35)',
-                  borderRadius: 16,
-                  color: '#fdf8e2',
-                  fontSize: 26,
-                  fontWeight: 600,
-                  paddingLeft: 24,
-                  paddingRight: 24,
+                  border: 'none',
+                  borderBottom: '2.5px solid rgba(212, 175, 55, 0.7)',
+                  borderRadius: 0,
+                  color: '#ffffff',
+                  fontSize: 28,
+                  fontWeight: 700,
+                  paddingLeft: 6,
+                  paddingRight: 6,
                   outline: 'none',
                   boxShadow: 'none',
-                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)',
-                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                  textShadow: '0 2px 12px rgba(0, 0, 0, 0.95), 0 0 16px rgba(0, 0, 0, 0.8)',
+                  transition: 'border-color 0.25s, filter 0.25s'
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#f59e0b';
-                  e.currentTarget.style.boxShadow = '0 0 18px rgba(245, 158, 11, 0.4)';
+                  e.currentTarget.style.borderBottomColor = '#fbbf24';
+                  e.currentTarget.style.filter = 'drop-shadow(0 2px 8px rgba(251, 191, 36, 0.65))';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.35)';
-                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderBottomColor = 'rgba(212, 175, 55, 0.7)';
+                  e.currentTarget.style.filter = 'none';
                 }}
               />
             </div>
 
-            {/* SEZIONE PULSANTI DI GIOCO (Allineati orizzontalmente) */}
+            {/* SEZIONE PULSANTI E CODICE (Allineati orizzontalmente senza box) */}
             <div
               className="flex items-center justify-between"
               style={{
                 width: 780,
-                marginTop: 36
+                marginTop: 40
               }}
             >
-              {/* Pulsante: CREA NUOVA STANZA */}
+              {/* Pulsante: CREA NUOVA STANZA (Rosso imperiale) */}
               <button
                 type="button"
                 onClick={() => handleCreate()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-red-950/30 hover:border-red-400 active:scale-95"
+                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:brightness-115 active:scale-95"
                 style={{
                   width: 270,
-                  height: 68,
-                  backgroundColor: 'transparent',
-                  borderRadius: 16,
-                  border: '2px solid #e60000',
+                  height: 66,
+                  background: 'linear-gradient(135deg, #b30000, #e60000)',
+                  borderRadius: 33,
+                  border: 'none',
                   fontSize: 18,
                   letterSpacing: '0.04em',
                   gap: 10,
-                  boxShadow: 'none',
-                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 12px rgba(230, 0, 0, 0.7)'
+                  boxShadow: '0 8px 24px rgba(179, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.8)',
+                  textShadow: '0 2px 6px rgba(0, 0, 0, 0.9)'
                 }}
               >
                 <img
                   src="/assets/icons/sword_white.webp"
                   alt=""
-                  style={{ width: 22, height: 22, objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(230,0,0,0.8))' }}
+                  style={{ width: 22, height: 22, objectFit: 'contain' }}
                 />
                 <span>CREA NUOVA STANZA</span>
               </button>
 
-              {/* Input Codice: CODICE - Trasparente */}
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleJoin();
-                }}
-                placeholder="CODICE"
-                maxLength={6}
+              {/* Input Codice: CODICE - Calligrafico con linea d'oro (Il Secondo) */}
+              <div
+                className="flex items-center justify-center"
                 style={{
-                  width: 180,
-                  height: 68,
-                  backgroundColor: 'transparent',
-                  border: '1.5px solid rgba(255, 255, 255, 0.35)',
-                  borderRadius: 16,
-                  color: '#f6ad55',
-                  fontSize: 22,
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  letterSpacing: '0.14em',
-                  textTransform: 'uppercase',
-                  outline: 'none',
-                  boxShadow: 'none',
-                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)',
-                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                  width: 200,
+                  height: 66
                 }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#f59e0b';
-                  e.currentTarget.style.boxShadow = '0 0 16px rgba(245, 158, 11, 0.4)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.35)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              />
+              >
+                <input
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleJoin();
+                  }}
+                  placeholder="CODICE"
+                  maxLength={6}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: '2.5px solid rgba(245, 158, 11, 0.7)',
+                    borderRadius: 0,
+                    color: '#fcd34d',
+                    fontSize: 26,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    letterSpacing: '0.22em',
+                    textTransform: 'uppercase',
+                    outline: 'none',
+                    boxShadow: 'none',
+                    textShadow: '0 2px 10px rgba(0, 0, 0, 0.95), 0 0 14px rgba(246, 173, 85, 0.5)',
+                    transition: 'border-color 0.25s, filter 0.25s'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderBottomColor = '#fbbf24';
+                    e.currentTarget.style.filter = 'drop-shadow(0 2px 10px rgba(251, 191, 36, 0.75))';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderBottomColor = 'rgba(245, 158, 11, 0.7)';
+                    e.currentTarget.style.filter = 'none';
+                  }}
+                />
+              </div>
 
-              {/* Pulsante: ENTRA - Trasparente */}
+              {/* Pulsante: ENTRA (Oro luminoso) */}
               <button
                 type="button"
                 onClick={() => handleJoin()}
-                className="flex items-center justify-center font-bold text-white transition-all duration-200 cursor-pointer hover:bg-amber-950/30 hover:border-amber-300 active:scale-95"
+                className="flex items-center justify-center font-bold text-slate-950 transition-all duration-200 cursor-pointer hover:brightness-110 active:scale-95"
                 style={{
-                  width: 270,
-                  height: 68,
-                  backgroundColor: 'transparent',
-                  border: '2px solid #d69e2e',
-                  borderRadius: 16,
-                  fontSize: 18,
-                  letterSpacing: '0.04em',
+                  width: 240,
+                  height: 66,
+                  background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                  borderRadius: 33,
+                  border: 'none',
+                  fontSize: 19,
+                  letterSpacing: '0.06em',
                   gap: 10,
-                  boxShadow: 'none',
-                  textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 12px rgba(214, 158, 46, 0.7)'
+                  boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4), 0 2px 6px rgba(0, 0, 0, 0.8)',
+                  textShadow: '0 1px 2px rgba(255, 255, 255, 0.25)'
                 }}
               >
-                <Users style={{ width: 22, height: 22, color: '#f6ad55' }} />
+                <Users style={{ width: 22, height: 22, color: '#1a120b' }} />
                 <span>ENTRA</span>
               </button>
             </div>
