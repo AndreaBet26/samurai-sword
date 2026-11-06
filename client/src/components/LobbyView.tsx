@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { PlayerPublicState, RoomSettings } from '../../../shared/types';
-import { Users, Bot, Copy, Check, Play, BookOpen, Link2, Trash2 } from 'lucide-react';
+import { Users, Bot, Copy, Check, Play, BookOpen, Link2, Trash2, Plus } from 'lucide-react';
 
 const NAME_KEY = 'samurai-sword-nome';
 
@@ -342,24 +342,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 <span>ENTRA</span>
               </button>
             </div>
-
-            {/* SEZIONE LINK INFORMATIVO IN BASSO */}
-            <div className="flex justify-center" style={{ marginTop: 44 }}>
-              <button
-                type="button"
-                onClick={onOpenRules}
-                className="font-bold transition-all cursor-pointer hover:text-amber-300 hover:underline flex items-center gap-2"
-                style={{
-                  fontSize: 20,
-                  color: '#cbd5e1',
-                  letterSpacing: '0.04em',
-                  textShadow: '0 2px 10px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 0, 0, 0.8)'
-                }}
-              >
-                <BookOpen style={{ width: 22, height: 22 }} />
-                <span>Leggi il Regolamento Ufficiale</span>
-              </button>
-            </div>
           </div>
         ) : (
           /* ===================== STANZA DI ATTESA (SALA D'ATTESA LOBBY) ===================== */
@@ -450,18 +432,40 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             {/* 2. LISTA GUERRIERI IN ATTESA - Mostra tutti i giocatori (fino a 7) direttamente, senza slider */}
             <div className="flex flex-col">
               <div className="flex items-center justify-between pb-2">
-                <span
-                  className="font-black uppercase tracking-wider flex items-center gap-2.5"
-                  style={{
-                    fontSize: 22,
-                    color: '#f8fafc',
-                    letterSpacing: '0.08em',
-                    textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
-                  }}
-                >
-                  <Users style={{ width: 26, height: 26, color: '#f59e0b' }} />
-                  <span>GUERRIERI IN ATTESA ({players.length} / 7)</span>
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="font-black uppercase tracking-wider flex items-center gap-2.5"
+                    style={{
+                      fontSize: 22,
+                      color: '#f8fafc',
+                      letterSpacing: '0.08em',
+                      textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                    }}
+                  >
+                    <Users style={{ width: 26, height: 26, color: '#f59e0b' }} />
+                    <span>GUERRIERI IN ATTESA ({players.length} / 7)</span>
+                  </span>
+
+                  {/* Pulsante rapido affianco al titolo: solo "+" ed icona robot */}
+                  {isHost && players.length < 7 && (
+                    <button
+                      type="button"
+                      onClick={handleAddBot}
+                      className="flex items-center gap-1 px-3 py-1 rounded-full font-black text-sky-200 transition-all cursor-pointer hover:brightness-125 hover:scale-105 active:scale-95"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.4), rgba(3, 105, 161, 0.6))',
+                        border: '1.5px solid rgba(56, 189, 248, 0.7)',
+                        fontSize: 16,
+                        boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)'
+                      }}
+                      title="Aggiungi Bot (IA)"
+                    >
+                      <Plus style={{ width: 16, height: 16, strokeWidth: 3 }} />
+                      <Bot style={{ width: 20, height: 20, color: '#38bdf8' }} />
+                    </button>
+                  )}
+                </div>
+
                 <span
                   className="font-semibold"
                   style={{
@@ -635,59 +639,37 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             {/* 4. CONTROLLI DI AVVIO */}
             <div className="flex flex-col gap-2.5 pt-1">
               {isHost && (
-                <>
-                  {players.length < 7 && (
-                    <button
-                      type="button"
-                      onClick={handleAddBot}
-                      className="w-full py-3 rounded-full font-bold transition-all flex items-center justify-center gap-2.5 cursor-pointer hover:brightness-115 active:scale-98"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.35), rgba(3, 105, 161, 0.55))',
-                        border: '1.5px solid rgba(56, 189, 248, 0.6)',
-                        color: '#bae6fd',
-                        fontSize: 19,
-                        letterSpacing: '0.04em',
-                        boxShadow: '0 6px 18px rgba(2, 132, 199, 0.3)',
-                        textShadow: '0 2px 8px rgba(0, 0, 0, 0.9)'
-                      }}
-                    >
-                      <Bot style={{ width: 22, height: 22, color: '#38bdf8' }} />
-                      <span>Aggiungi Giocatore Bot (IA)</span>
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={handleStartGame}
-                    disabled={players.length < 3}
-                    className={`w-full py-3.5 rounded-full font-black flex items-center justify-center gap-3 transition-all ${
+                <button
+                  type="button"
+                  onClick={handleStartGame}
+                  disabled={players.length < 3}
+                  className={`w-full py-4 rounded-full font-black flex items-center justify-center gap-3 transition-all ${
+                    players.length >= 3
+                      ? 'text-white cursor-pointer hover:brightness-115 hover:scale-[1.01] active:scale-98'
+                      : 'text-slate-400 cursor-not-allowed bg-black/40'
+                  }`}
+                  style={{
+                    fontSize: 24,
+                    letterSpacing: '0.06em',
+                    background:
                       players.length >= 3
-                        ? 'text-white cursor-pointer hover:brightness-115 hover:scale-[1.01] active:scale-98'
-                        : 'text-slate-400 cursor-not-allowed bg-black/40'
-                    }`}
-                    style={{
-                      fontSize: 23,
-                      letterSpacing: '0.06em',
-                      background:
-                        players.length >= 3
-                          ? 'linear-gradient(135deg, #b30000, #e60000)'
-                          : 'rgba(255, 255, 255, 0.05)',
-                      border: players.length >= 3 ? 'none' : '1.5px solid rgba(255, 255, 255, 0.15)',
-                      boxShadow:
-                        players.length >= 3
-                          ? '0 10px 30px rgba(230, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.9)'
-                          : 'none',
-                      textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
-                    }}
-                  >
-                    <Play style={{ width: 24, height: 24 }} fill="currentColor" />
-                    <span>
-                      {players.length >= 3
-                        ? 'INIZIA LA BATTAGLIA!'
-                        : `SERVONO ALMENO 3 GIOCATORI (${players.length} / 3)`}
-                    </span>
-                  </button>
-                </>
+                        ? 'linear-gradient(135deg, #b30000, #e60000)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                    border: players.length >= 3 ? 'none' : '1.5px solid rgba(255, 255, 255, 0.15)',
+                    boxShadow:
+                      players.length >= 3
+                        ? '0 10px 30px rgba(230, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.9)'
+                        : 'none',
+                    textShadow: '0 2px 10px rgba(0, 0, 0, 0.95)'
+                  }}
+                >
+                  <Play style={{ width: 26, height: 26 }} fill="currentColor" />
+                  <span>
+                    {players.length >= 3
+                      ? 'INIZIA LA BATTAGLIA!'
+                      : `SERVONO ALMENO 3 GIOCATORI (${players.length} / 3)`}
+                  </span>
+                </button>
               )}
 
               {!isHost && (
@@ -702,25 +684,29 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   In attesa che il capostanza avvii la battaglia...
                 </div>
               )}
-
-              <div className="flex justify-center pt-0.5">
-                <button
-                  type="button"
-                  onClick={onOpenRules}
-                  className="font-bold text-slate-300 hover:text-amber-300 hover:underline flex items-center gap-2.5 transition-colors cursor-pointer"
-                  style={{
-                    fontSize: 17,
-                    letterSpacing: '0.04em',
-                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.95)'
-                  }}
-                >
-                  <BookOpen style={{ width: 20, height: 20 }} />
-                  <span>Leggi il Regolamento Ufficiale</span>
-                </button>
-              </div>
             </div>
           </div>
         )}
+
+        {/* PULSANTE REGOLAMENTO IN BASSO A DESTRA: SOLO ICONA */}
+        <button
+          type="button"
+          onClick={onOpenRules}
+          className="absolute cursor-pointer transition-all duration-200 hover:scale-110 hover:brightness-125 active:scale-95 flex items-center justify-center rounded-full"
+          style={{
+            right: 80,
+            bottom: 65,
+            width: 72,
+            height: 72,
+            backgroundColor: 'rgba(10, 16, 28, 0.75)',
+            border: '2px solid rgba(212, 175, 55, 0.65)',
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.85), 0 0 16px rgba(212, 175, 55, 0.35)',
+            zIndex: 50
+          }}
+          title="Leggi il Regolamento Ufficiale"
+        >
+          <BookOpen style={{ width: 34, height: 34, color: '#fcd34d' }} />
+        </button>
       </div>
     </div>
   );
